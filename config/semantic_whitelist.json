@@ -1,0 +1,58 @@
+{
+  "_comment": "Books matching these patterns get semantic chunking. All others get fixed.",
+  "_updated": "2026-03-19",
+  
+  "authors": [
+    "Jung",
+    "Hillman",
+    "von Franz",
+    "Neumann, Erich",
+    "Heidegger",
+    "Nietzsche",
+    "Plato",
+    "Platon",
+    "Aristotle",
+    "Aristotel",
+    "Kant",
+    "Schopenhauer",
+    "Wittgenstein",
+    "McKenna",
+    "Hofmann",
+    "Shulgin",
+    "Grof",
+    "Muraresku",
+    "Wasson",
+    "Crowley",
+    "Regardie",
+    "Fortune, Dion",
+    "Agrippa",
+    "Lévi",
+    "Ajahn",
+    "Thich Nhat",
+    "Suzuki",
+    "Trungpa",
+    "Tolkien",
+    "Borges",
+    "Dostoevsky",
+    "Dostojevski",
+    "Tolstoy",
+    "Tolstoj",
+    "Chekhov",
+    "Čehov",
+    "Gogol",
+    "Bulgakov",
+    "Nabokov",
+    "Solzhenitsyn",
+    "Pushkin",
+    "Turgenev",
+    "Hesse",
+    "Blake, William"
+  ],
+  
+  "title_contains": [
+    "architecture",
+    "Architecture"
+  ],
+  
+  "title_exact": []
+}

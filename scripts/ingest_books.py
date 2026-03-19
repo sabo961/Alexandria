@@ -31,15 +31,20 @@ from bs4 import BeautifulSoup
 import fitz  # PyMuPDF
 
 # NLP & Embeddings
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+    _SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    _SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 # Qdrant
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from qdrant_utils import check_qdrant_connection
 
-# Universal Semantic Chunking
+# Chunking options
 from universal_chunking import UniversalChunker
+from fixed_chunking import FixedChunker
 
 # Hierarchical Chunking
 from chapter_detection import detect_chapters
@@ -112,6 +117,11 @@ def _ensure_ingest_log_schema(conn):
         conn.execute('SELECT hostname FROM ingest_log LIMIT 1')
     except sqlite3.OperationalError:
         conn.execute('ALTER TABLE ingest_log ADD COLUMN hostname TEXT')
+    # Migration: add chunking_mode column if missing
+    try:
+        conn.execute('SELECT chunking_mode FROM ingest_log LIMIT 1')
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE ingest_log ADD COLUMN chunking_mode TEXT DEFAULT 'semantic'")
 
 def _log_ingest_performance(book_title: str, author: str, language: str,
                             chunks: int, file_size_mb: float,
@@ -119,7 +129,8 @@ def _log_ingest_performance(book_title: str, author: str, language: str,
                             duration_chunk: float, duration_upload: float,
                             device: str, model_id: str, batch_size: int,
                             collection: str, success: bool,
-                            source: str = '', source_id: str = ''):
+                            source: str = '', source_id: str = '',
+                            chunking_mode: str = 'fixed'):
     """Log ingest job to SQLite for collection-level performance tracking."""
     try:
         INGEST_LOG_DB.parent.mkdir(parents=True, exist_ok=True)
@@ -130,14 +141,14 @@ def _log_ingest_performance(book_title: str, author: str, language: str,
             '''INSERT INTO ingest_log (timestamp, hostname, book_title, author,
                language, source, source_id, collection, chunks, file_size_mb,
                duration_total, duration_embed, duration_chunk, duration_upload,
-               chunks_per_sec, device, model_id, batch_size, success)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+               chunks_per_sec, device, model_id, batch_size, success, chunking_mode)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (datetime.now().isoformat(), _HOSTNAME, book_title, author,
              language, source, source_id, collection, chunks, round(file_size_mb, 3),
              round(duration_total, 2), round(duration_embed, 2),
              round(duration_chunk, 2), round(duration_upload, 2),
              round(chunks_per_sec, 2), device, model_id, batch_size,
-             1 if success else 0)
+             1 if success else 0, chunking_mode)
         )
         conn.commit()
         conn.close()
@@ -302,20 +313,54 @@ class EmbeddingGenerator:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    def _ollama_embed(self, texts: List[str], model_id: str) -> List[List[float]]:
+        """Generate embeddings via Ollama API (GPU-accelerated, no download needed)."""
+        import urllib.request
+        import json as _json
+
+        ollama_model = EMBEDDING_MODELS[model_id]["name"].split("/")[-1]  # BAAI/bge-m3 → bge-m3
+        # Use ollama_model name as registered in Ollama (bge-m3:latest)
+        ollama_name = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
+        ollama_url = os.environ.get("OLLAMA_HOST_URL", "http://localhost:11434") + "/api/embeddings"
+
+        results = []
+        for text in texts:
+            # Skip empty/whitespace-only chunks
+            clean = text.strip()
+            if not clean:
+                results.append(None)  # Mark for filtering
+                continue
+            payload = _json.dumps({"model": ollama_name, "prompt": clean}).encode()
+            req = urllib.request.Request(ollama_url, data=payload, headers={"Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    data = _json.loads(resp.read())
+                emb = data["embedding"]
+                # Check for NaN values (Ollama bug on certain inputs)
+                has_nan = any((isinstance(v, float) and v != v) for v in emb)
+                if has_nan:
+                    logger.warning(f"Ollama returned NaN for chunk (len={len(clean)}) — skipping")
+                    results.append(None)
+                else:
+                    results.append(emb)
+            except Exception as e:
+                logger.warning(f"Ollama embed failed for chunk (len={len(clean)}): {e} — skipping")
+                results.append(None)
+        return results
+
     def get_model(self, model_id: str = None):
         """
         Get or load embedding model with GPU/CPU detection.
-
-        Args:
-            model_id: Model identifier from EMBEDDING_MODELS registry
-                      (default: DEFAULT_EMBEDDING_MODEL)
-
-        Returns:
-            Loaded SentenceTransformer model on appropriate device
+        Returns None when using Ollama backend (no local model needed).
         """
-        import torch
-
         model_id = model_id or DEFAULT_EMBEDDING_MODEL
+        # Ollama backend: no local model to load
+        if os.environ.get("EMBEDDING_BACKEND") == "ollama":
+            return None
+        if not _SENTENCE_TRANSFORMERS_AVAILABLE:
+            raise RuntimeError("sentence-transformers not installed and EMBEDDING_BACKEND != ollama")
+
+        import torch
 
         if model_id not in self._models:
             if model_id not in EMBEDDING_MODELS:
@@ -327,30 +372,22 @@ class EmbeddingGenerator:
             model_name = model_config["name"]
             expected_dim = model_config["dim"]
 
-            # Device detection
             if EMBEDDING_DEVICE == 'auto':
                 device = 'cuda' if torch.cuda.is_available() else 'cpu'
             else:
                 device = EMBEDDING_DEVICE
 
-            # Logging and warnings
-            if device == 'cpu' and torch.cuda.is_available():
-                logger.warning("GPU available but EMBEDDING_DEVICE set to CPU")
-            elif device == 'cpu':
+            if device == 'cpu':
                 logger.warning("Running on CPU - embedding generation will be slower")
 
             logger.info(f"Loading embedding model: {model_name} (id: {model_id})")
             logger.info(f"Device: {device}")
 
             model = SentenceTransformer(model_name, device=device)
-
-            # Verify embedding dimension
             actual_dim = model.get_sentence_embedding_dimension()
             logger.info(f"Embedding dimension: {actual_dim}")
-
             if actual_dim != expected_dim:
                 logger.warning(f"Dimension mismatch! Expected {expected_dim}, got {actual_dim}")
-
             self._models[model_id] = model
 
         return self._models[model_id]
@@ -363,20 +400,20 @@ class EmbeddingGenerator:
     def generate_embeddings(self, texts: List[str], model_id: str = None) -> List[List[float]]:
         """
         Generate embeddings for a list of texts.
-
-        Args:
-            texts: List of text strings to embed
-            model_id: Model identifier (default: DEFAULT_EMBEDDING_MODEL)
-
-        Returns:
-            List of embedding vectors as float lists
+        Uses Ollama API if EMBEDDING_BACKEND=ollama, otherwise sentence-transformers.
         """
+        model_id = model_id or DEFAULT_EMBEDDING_MODEL
+
+        # Ollama backend (GPU via existing Ollama service)
+        if os.environ.get("EMBEDDING_BACKEND") == "ollama":
+            logger.info(f"Embedding via Ollama ({len(texts)} texts)")
+            return self._ollama_embed(texts, model_id)
+
+        # sentence-transformers backend
+        import torch
         model = self.get_model(model_id)
-        # Disable ALL progress bars to avoid sys.stderr issues in Streamlit environment
-        # tqdm progress bar causes [Errno 22] when sys.stderr is not available
         batch_size = 64 if model.device.type == 'cuda' else 32
 
-        # Use automatic mixed precision on GPU for faster inference
         if model.device.type == 'cuda':
             with torch.amp.autocast('cuda'):
                 embeddings = model.encode(
@@ -396,7 +433,6 @@ class EmbeddingGenerator:
             )
 
         logger.debug(f"Generated {len(texts)} embeddings of dimension {embeddings.shape[1]}")
-
         return embeddings.tolist()
 
 def generate_embeddings(texts: List[str], model_id: str = None) -> List[List[float]]:
@@ -487,9 +523,11 @@ Collection error: {str(e)}
         logger.error(f"Qdrant collection operation failed: {str(e)}")
         return {'success': False, 'error': error_detail.strip()}
 
-    # Build points
+    # Build points (skip chunks where embedding is None — failed Ollama calls)
     points = []
     for chunk, embedding in zip(chunks, embeddings):
+        if embedding is None:
+            continue
         points.append(PointStruct(
             id=str(uuid.uuid4()),
             vector=embedding,
@@ -598,9 +636,11 @@ def upload_hierarchical_to_qdrant(
         logger.error(f"Collection operation failed: {str(e)}")
         return {'success': False, 'error': str(e)}
 
-    # Build parent points
+    # Build parent points (skip None embeddings)
     parent_points = []
     for chunk, embedding in zip(parent_chunks, parent_embeddings):
+        if embedding is None:
+            continue
         parent_points.append(PointStruct(
             id=chunk['id'],  # Use pre-assigned UUID
             vector=embedding,
@@ -627,9 +667,11 @@ def upload_hierarchical_to_qdrant(
             }
         ))
 
-    # Build child points
+    # Build child points (skip None embeddings)
     child_points = []
     for chunk, embedding in zip(child_chunks, child_embeddings):
+        if embedding is None:
+            continue
         child_points.append(PointStruct(
             id=str(uuid.uuid4()),
             vector=embedding,
@@ -853,7 +895,8 @@ def ingest_book(
     max_chunk_size: int = 1200,
     force_reingest: bool = False,
     model_id: Optional[str] = None,
-    source_meta: Optional[Dict] = None
+    source_meta: Optional[Dict] = None,
+    use_semantic: bool = False  # False = fixed chunking (fast), True = semantic chunking (slow)
 ):
     """
     Ingest a book into Qdrant with optional hierarchical chunking.
@@ -946,12 +989,21 @@ def ingest_book(
 
     # Setup chunker
     embedder = EmbeddingGenerator()
-    chunker = UniversalChunker(
-        embedder,
-        threshold=threshold,
-        min_chunk_size=min_chunk_size,
-        max_chunk_size=max_chunk_size
-    )
+    if use_semantic:
+        chunker = UniversalChunker(
+            embedder,
+            threshold=threshold,
+            min_chunk_size=min_chunk_size,
+            max_chunk_size=max_chunk_size
+        )
+        logging.info(f"Using SEMANTIC chunking (slow)")
+    else:
+        chunker = FixedChunker(
+            chunk_size=500,
+            overlap=50,
+            min_chunk_size=100
+        )
+        logging.info(f"Using FIXED chunking (fast)")
 
     # Calculate rough sentence count for stats
     sentence_count = len(text.split('. '))
@@ -1042,6 +1094,29 @@ def ingest_book(
         child_embeddings = generate_embeddings(child_texts, model_id=effective_model_id)
         t_embed_end = time.time()
 
+        # Filter out failed embeddings (None values from Ollama errors)
+        # Convert to list first to handle both numpy arrays and Python lists
+        if not isinstance(parent_embeddings, list):
+            parent_embeddings = list(parent_embeddings) if parent_embeddings is not None else []
+        if not isinstance(child_embeddings, list):
+            child_embeddings = list(child_embeddings) if child_embeddings is not None else []
+        
+        # Filter None values
+        if parent_embeddings and any(e is None for e in parent_embeddings):
+            filtered_parents = [(c, e) for c, e in zip(parent_chunks, parent_embeddings) if e is not None]
+            if filtered_parents:
+                parent_chunks, parent_embeddings = zip(*filtered_parents)
+                parent_chunks, parent_embeddings = list(parent_chunks), list(parent_embeddings)
+            else:
+                parent_chunks, parent_embeddings = [], []
+        if child_embeddings and any(e is None for e in child_embeddings):
+            filtered_children = [(c, e) for c, e in zip(all_child_chunks, child_embeddings) if e is not None]
+            if filtered_children:
+                all_child_chunks, child_embeddings = zip(*filtered_children)
+                all_child_chunks, child_embeddings = list(all_child_chunks), list(child_embeddings)
+            else:
+                all_child_chunks, child_embeddings = [], []
+
         # 4. Upload hierarchically (with model metadata)
         t_upload_start = time.time()
         upload_result = upload_hierarchical_to_qdrant(
@@ -1101,6 +1176,17 @@ def ingest_book(
         t_embed_start = time.time()
         embeddings = generate_embeddings([c['text'] for c in chunks], model_id=effective_model_id)
         t_embed_end = time.time()
+
+        # Filter out failed embeddings (None values from Ollama errors)
+        if not isinstance(embeddings, list):
+            embeddings = list(embeddings) if embeddings is not None else []
+        if embeddings and any(e is None for e in embeddings):
+            filtered = [(c, e) for c, e in zip(chunks, embeddings) if e is not None]
+            if filtered:
+                chunks, embeddings = zip(*filtered)
+                chunks, embeddings = list(chunks), list(embeddings)
+            else:
+                chunks, embeddings = [], []
 
         t_upload_start = time.time()
         upload_result = upload_to_qdrant(
@@ -1175,6 +1261,7 @@ def ingest_book(
         success=result.get('success', False),
         source=result.get('source', ''),
         source_id=result.get('source_id', ''),
+        chunking_mode='semantic' if use_semantic else 'fixed',
     )
 
     return result

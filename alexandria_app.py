@@ -426,16 +426,37 @@ with st.expander("📊 Ingest Log", expanded=False):
         log_collection = selected_coll if 'selected_coll' in dir() else QDRANT_COLLECTION
 
         if Path(db_path).exists():
+            # Limit selector
+            col_limit1, col_limit2 = st.columns([1, 3])
+            with col_limit1:
+                show_all = st.checkbox("Show all", value=False, key="log_show_all")
+            with col_limit2:
+                if not show_all:
+                    limit_val = st.select_slider("Last N", options=[50, 100, 200, 500], value=100, key="log_limit")
+                else:
+                    limit_val = None
+            
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                '''SELECT timestamp, hostname, book_title, author, language,
-                          chunks, duration_total, duration_embed, chunks_per_sec,
-                          device, collection, success
-                   FROM ingest_log WHERE collection=?
-                   ORDER BY timestamp DESC LIMIT 50''',
-                (log_collection,)
-            ).fetchall()
+            
+            if show_all:
+                rows = conn.execute(
+                    '''SELECT timestamp, hostname, book_title, author, language,
+                              chunks, duration_total, duration_embed, chunks_per_sec,
+                              device, collection, success, chunking_mode
+                       FROM ingest_log WHERE collection=?
+                       ORDER BY timestamp DESC''',
+                    (log_collection,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    '''SELECT timestamp, hostname, book_title, author, language,
+                              chunks, duration_total, duration_embed, chunks_per_sec,
+                              device, collection, success, chunking_mode
+                       FROM ingest_log WHERE collection=?
+                       ORDER BY timestamp DESC LIMIT ?''',
+                    (log_collection, limit_val)
+                ).fetchall()
             conn.close()
 
             if rows:
@@ -447,6 +468,7 @@ with st.expander("📊 Ingest Log", expanded=False):
                         "Book": r['book_title'] or '?',
                         "Author": r['author'] or '?',
                         "Lang": r['language'] or '?',
+                        "Mode": r['chunking_mode'] or 'semantic',
                         "Chunks": r['chunks'],
                         "Total (s)": round(r['duration_total'], 1) if r['duration_total'] else 0,
                         "Embed (s)": round(r['duration_embed'], 1) if r['duration_embed'] else 0,
@@ -464,6 +486,115 @@ with st.expander("📊 Ingest Log", expanded=False):
             st.info(f"Database not found: {db_path}")
     except Exception as e:
         st.error(f"Could not load ingest log: {e}")
+
+# =============================================================================
+# SECTION: Chunking Rules Editor
+# =============================================================================
+with st.expander("⚙️ Chunking Rules", expanded=False):
+    rules_path = project_root / "config" / "chunking_rules.json"
+    
+    if rules_path.exists():
+        try:
+            with open(rules_path, 'r', encoding='utf-8') as f:
+                rules = json.load(f)
+            
+            st.caption("Edit which authors/titles use semantic (slow, quality) vs fixed (fast, bulk) chunking.")
+            
+            # Author rules
+            st.subheader("Authors")
+            author_rules = rules.get("authors", [])
+            
+            # Convert to editable format
+            author_data = []
+            for item in author_rules:
+                if isinstance(item, str):
+                    author_data.append({"pattern": item, "semantic": True})
+                else:
+                    author_data.append({"pattern": item.get("pattern", ""), "semantic": item.get("semantic", True)})
+            
+            if author_data:
+                import pandas as pd
+                df_authors = pd.DataFrame(author_data)
+                edited_authors = st.data_editor(
+                    df_authors,
+                    column_config={
+                        "pattern": st.column_config.TextColumn("Author Pattern", width="large"),
+                        "semantic": st.column_config.CheckboxColumn("Semantic?", default=True, help="✓ = slow/quality, ✗ = fast/bulk")
+                    },
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key="author_rules_editor"
+                )
+            else:
+                edited_authors = pd.DataFrame(columns=["pattern", "semantic"])
+                st.info("No author rules defined.")
+            
+            # Title contains rules
+            st.subheader("Title Contains")
+            title_rules = rules.get("title_contains", [])
+            title_data = []
+            for item in title_rules:
+                if isinstance(item, str):
+                    title_data.append({"pattern": item, "semantic": True})
+                else:
+                    title_data.append({"pattern": item.get("pattern", ""), "semantic": item.get("semantic", True)})
+            
+            if title_data:
+                df_titles = pd.DataFrame(title_data)
+                edited_titles = st.data_editor(
+                    df_titles,
+                    column_config={
+                        "pattern": st.column_config.TextColumn("Title Pattern", width="large"),
+                        "semantic": st.column_config.CheckboxColumn("Semantic?", default=True)
+                    },
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key="title_rules_editor"
+                )
+            else:
+                edited_titles = pd.DataFrame(columns=["pattern", "semantic"])
+            
+            # Save button
+            if st.button("💾 Save Rules", type="primary"):
+                # Convert back to JSON format
+                new_rules = {
+                    "_comment": rules.get("_comment", "Chunking rules for Alexandria"),
+                    "_updated": str(pd.Timestamp.now().date()),
+                    "_default": "fixed (if no rule matches)",
+                    "authors": edited_authors.to_dict('records') if not edited_authors.empty else [],
+                    "title_contains": edited_titles.to_dict('records') if not edited_titles.empty else [],
+                    "title_exact": rules.get("title_exact", [])
+                }
+                
+                with open(rules_path, 'w', encoding='utf-8') as f:
+                    json.dump(new_rules, f, indent=2, ensure_ascii=False)
+                
+                st.success("✅ Rules saved! Changes apply to next ingest.")
+                st.rerun()
+            
+            # Stats
+            semantic_count = sum(1 for a in author_data if a.get("semantic", True))
+            fixed_count = len(author_data) - semantic_count
+            st.caption(f"📊 {len(author_data)} author rules ({semantic_count} semantic, {fixed_count} fixed) | {len(title_data)} title rules")
+            
+        except Exception as e:
+            st.error(f"Error loading rules: {e}")
+    else:
+        st.warning(f"Rules file not found: {rules_path}")
+        if st.button("Create Default Rules"):
+            default_rules = {
+                "_comment": "Chunking rules for Alexandria",
+                "_updated": "2026-03-19",
+                "_default": "fixed (if no rule matches)",
+                "authors": [],
+                "title_contains": [],
+                "title_exact": []
+            }
+            rules_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(rules_path, 'w', encoding='utf-8') as f:
+                json.dump(default_rules, f, indent=2)
+            st.success("Created empty rules file.")
+            st.rerun()
 
 # =============================================================================
 # SECTION 4: Speaker's Corner

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Alexandria Batch Ingestion
 ===========================
@@ -16,8 +17,20 @@ Usage:
     python batch_ingest.py --dry-run
 """
 
+import sys
+import os
+
+# Force UTF-8 output on Windows (avoid encoding errors with Croatian/Czech names)
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 import argparse
 import logging
+import threading
+import concurrent.futures
+from functools import wraps
 from pathlib import Path
 from typing import List
 import time
@@ -29,12 +42,20 @@ from config import (
     DEFAULT_EMBEDDING_MODEL,
 )
 from ingest_books import ingest_book
+from chunking_policy import load_whitelist, should_use_semantic
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Timeout for single book processing (seconds)
+BOOK_TIMEOUT = 300  # 5 minutes
+
+class BookTimeoutError(Exception):
+    """Raised when book processing exceeds timeout."""
+    pass
 
 # Supported book formats
 BOOK_FORMATS = {'.epub', '.pdf', '.txt', '.md', '.html', '.htm'}
@@ -131,6 +152,12 @@ def batch_ingest(
     failed_books = []
     start_time = time.time()
     book_times = []
+    semantic_count = 0
+    fixed_count = 0
+    
+    # Load whitelist once for the whole batch
+    whitelist = load_whitelist()
+    logger.info(f"Loaded semantic whitelist: {len(whitelist.get('authors', []))} authors, {len(whitelist.get('title_contains', []))} title patterns")
 
     for i, book_path in enumerate(books, 1):
         book_start = time.time()
@@ -143,36 +170,77 @@ def batch_ingest(
         else:
             eta_str = ""
 
-        print(f"\n[{i}/{total}] Processing: {book_path.name}{eta_str}")
+        # Extract title/author from filename for whitelist check
+        # Format: "Title - Author.epub" or just "Title.epub"
+        stem = book_path.stem
+        if ' - ' in stem:
+            parts = stem.rsplit(' - ', 1)
+            title_guess = parts[0]
+            author_guess = parts[1] if len(parts) > 1 else ''
+        else:
+            title_guess = stem
+            author_guess = ''
+        
+        # Determine chunking mode based on whitelist
+        use_semantic, reason = should_use_semantic(title_guess, author_guess, whitelist)
+        mode_str = "SEMANTIC" if use_semantic else "FIXED"
+
+        print(f"\n[{i}/{total}] [{mode_str}] {book_path.name}{eta_str}", flush=True)
 
         try:
-            result = ingest_book(
-                filepath=str(book_path),
-                collection_name=collection_name,
-                qdrant_host=qdrant_host,
-                qdrant_port=qdrant_port,
-                model_id=model_id,
-                hierarchical=True,
-                force_reingest=False  # Don't delete existing - we're building new collection
-            )
+            # Use ThreadPoolExecutor for timeout (works on Windows)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    ingest_book,
+                    filepath=str(book_path),
+                    collection_name=collection_name,
+                    qdrant_host=qdrant_host,
+                    qdrant_port=qdrant_port,
+                    model_id=model_id,
+                    hierarchical=True,
+                    force_reingest=False,
+                    use_semantic=use_semantic
+                )
+                try:
+                    result = future.result(timeout=BOOK_TIMEOUT)
+                except concurrent.futures.TimeoutError:
+                    raise BookTimeoutError(f"Timeout after {BOOK_TIMEOUT}s")
 
             if result.get('success'):
                 book_duration = time.time() - book_start
                 book_times.append(book_duration)
                 chunks = result.get('chunks', 0)
-                print(f"  [OK] {result['title']} - {chunks} chunks ({format_duration(book_duration)})")
+                print(f"  [OK] {result['title']} - {chunks} chunks ({format_duration(book_duration)})", flush=True)
                 success_count += 1
+                if use_semantic:
+                    semantic_count += 1
+                else:
+                    fixed_count += 1
             else:
                 error = result.get('error', 'Unknown error')
-                print(f"  [FAIL] {error}")
+                print(f"  [FAIL] {error}", flush=True)
                 failed_count += 1
                 failed_books.append({
                     'path': str(book_path),
                     'error': error
                 })
 
+        except BookTimeoutError as e:
+            print(f"  [FAIL] TIMEOUT - {str(e)} - skipping", flush=True)
+            logger.warning(f"TIMEOUT: {book_path.name} - {str(e)}")
+            failed_count += 1
+            failed_books.append({
+                'path': str(book_path),
+                'error': str(e)
+            })
+            # Log to separate timeout file for later review
+            timeout_log = Path(directory) / '.qdrant' / 'timeout_books.txt'
+            timeout_log.parent.mkdir(parents=True, exist_ok=True)
+            with open(timeout_log, 'a', encoding='utf-8') as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {book_path.name} | {str(e)}\n")
+                
         except Exception as e:
-            print(f"  [FAIL] Exception: {str(e)}")
+            print(f"  [FAIL] Exception: {str(e)}", flush=True)
             failed_count += 1
             failed_books.append({
                 'path': str(book_path),
@@ -186,7 +254,7 @@ def batch_ingest(
     print(f"BATCH INGESTION SUMMARY")
     print(f"{'='*70}")
     print(f"Total books:   {total}")
-    print(f"Succeeded:     {success_count}")
+    print(f"Succeeded:     {success_count} (fixed: {fixed_count}, semantic: {semantic_count})")
     print(f"Failed:        {failed_count}")
     print(f"Duration:      {format_duration(total_duration)}")
 

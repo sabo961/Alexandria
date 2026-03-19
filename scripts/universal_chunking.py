@@ -60,7 +60,13 @@ class UniversalChunker:
         # Generate embeddings for all sentences at once for efficiency
         # Handle both class instances and raw models
         if hasattr(self.model, 'generate_embeddings'):
-            embeddings = np.array(self.model.generate_embeddings(sentences))
+            raw_embeddings = self.model.generate_embeddings(sentences)
+            # Filter out None values (Ollama failures) and replace with zero vectors
+            dim = len(raw_embeddings[0]) if raw_embeddings and raw_embeddings[0] is not None else 1024
+            embeddings = np.array([
+                e if e is not None else [0.0] * dim 
+                for e in raw_embeddings
+            ])
         else:
             embeddings = self.model.encode(sentences, show_progress_bar=False)
 
