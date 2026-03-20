@@ -310,9 +310,8 @@ with st.expander("📚 Calibre Library", expanded=False):
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            # Author filter
-            authors = sorted(set(b.author for b in books))
-            selected_author = st.selectbox("Author", ["All"] + authors, key="calibre_author")
+            # Author filter — text input to avoid rendering thousands of items in a dropdown
+            author_filter = st.text_input("Filter by author", key="calibre_author", placeholder="e.g. Pessoa")
 
         with col2:
             # Language filter
@@ -325,8 +324,8 @@ with st.expander("📚 Calibre Library", expanded=False):
 
         # Filter books
         filtered = books
-        if selected_author != "All":
-            filtered = [b for b in filtered if b.author == selected_author]
+        if author_filter:
+            filtered = [b for b in filtered if author_filter.lower() in b.author.lower()]
         if selected_lang != "All":
             filtered = [b for b in filtered if b.language == selected_lang]
         if search_term:
