@@ -43,6 +43,7 @@ from config import (
 )
 from ingest_books import ingest_book
 from chunking_policy import load_whitelist, should_use_semantic
+from collection_manifest import CollectionManifest
 
 logging.basicConfig(
     level=logging.INFO,
@@ -157,9 +158,12 @@ def batch_ingest(
     semantic_count = 0
     fixed_count = 0
     
-    # Load whitelist once for the whole batch
+    # Load whitelist and manifest once for the whole batch
     whitelist = load_whitelist()
     logger.info(f"Loaded semantic whitelist: {len(whitelist.get('authors', []))} authors, {len(whitelist.get('title_contains', []))} title patterns")
+
+    manifest = CollectionManifest(collection_name=collection_name)
+    skipped_count = 0
 
     for i, book_path in enumerate(books, 1):
         book_start = time.time()
@@ -186,6 +190,13 @@ def batch_ingest(
         # Determine chunking mode based on whitelist
         use_semantic, reason = should_use_semantic(title_guess, author_guess, whitelist)
         mode_str = "SEMANTIC" if use_semantic else "FIXED"
+
+        # Skip if already tracked in manifest (prevents duplicate ingestion)
+        title_guess_for_check = title_guess  # best-effort title from filename
+        if manifest.is_ingested(collection_name, title_guess_for_check):
+            print(f"\n[{i}/{total}] [SKIP] {book_path.name} (already in manifest)", flush=True)
+            skipped_count += 1
+            continue
 
         print(f"\n[{i}/{total}] [{mode_str}] {book_path.name}{eta_str}", flush=True)
 
@@ -256,6 +267,7 @@ def batch_ingest(
     print(f"BATCH INGESTION SUMMARY")
     print(f"{'='*70}")
     print(f"Total books:   {total}")
+    print(f"Skipped:       {skipped_count} (already in manifest)")
     print(f"Succeeded:     {success_count} (fixed: {fixed_count}, semantic: {semantic_count})")
     print(f"Failed:        {failed_count}")
     print(f"Duration:      {format_duration(total_duration)}")

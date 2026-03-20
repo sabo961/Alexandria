@@ -129,6 +129,22 @@ class CollectionManifest:
         conn.close()
         logger.info(f"Added to manifest: {book_title} ({chunks_count} chunks)")
 
+    def is_ingested(self, collection_name: str, book_title: str, source: str = None, source_id: str = None) -> bool:
+        """Check if a book is already tracked in the manifest."""
+        conn = _get_connection()
+        if source and source_id:
+            row = conn.execute(
+                'SELECT id FROM books WHERE collection=? AND source=? AND source_id=?',
+                (collection_name, source, str(source_id))
+            ).fetchone()
+        else:
+            row = conn.execute(
+                'SELECT id FROM books WHERE collection=? AND book_title=?',
+                (collection_name, book_title)
+            ).fetchone()
+        conn.close()
+        return row is not None
+
     def remove_book(self, collection_name: str, book_title: str):
         """Remove book from manifest by title."""
         conn = _get_connection()
