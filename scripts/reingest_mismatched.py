@@ -65,6 +65,7 @@ def find_book_file(title: str, author: str, calibre_path: str) -> str:
 def main():
     parser = argparse.ArgumentParser(description='Reingest books with wrong chunking mode')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be done without doing it')
+    parser.add_argument('--yes', '-y', action='store_true', help='Skip confirmation prompt (for non-interactive use)')
     parser.add_argument('--whitelist', type=str, help='Path to whitelist JSON')
     args = parser.parse_args()
 
@@ -90,11 +91,12 @@ def main():
         print(f"\n[DRY RUN] Would reingest {len(mismatched)} books.")
         return
 
-    # Confirm
-    confirm = input(f"\nReingest {len(mismatched)} books? [y/N] ")
-    if confirm.lower() != 'y':
-        print("Aborted.")
-        return
+    # Confirm (skip if --yes)
+    if not args.yes:
+        confirm = input(f"\nReingest {len(mismatched)} books? [y/N] ")
+        if confirm.lower() != 'y':
+            print("Aborted.")
+            return
 
     # Reingest each book
     success = 0

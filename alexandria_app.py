@@ -732,7 +732,7 @@ with st.expander("🔄 Ingest Control", expanded=False):
                         st.info("Starting reingest of mismatched books... check ingest log for progress.")
                         try:
                             subprocess.Popen(
-                                ['python', 'reingest_mismatched.py'],
+                                ['python', 'reingest_mismatched.py', '--yes'],
                                 cwd=str(project_root / 'scripts'),
                                 creationflags=subprocess.CREATE_NEW_CONSOLE if platform.system() == "Windows" else 0
                             )
