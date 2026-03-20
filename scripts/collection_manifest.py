@@ -145,6 +145,16 @@ class CollectionManifest:
         conn.close()
         return row is not None
 
+    def count_books(self, collection_name: str) -> int:
+        """Count number of ingested books in a collection."""
+        conn = _get_connection()
+        row = conn.execute(
+            'SELECT COUNT(*) FROM books WHERE collection=?',
+            (collection_name,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row else 0
+
     def remove_book(self, collection_name: str, book_title: str):
         """Remove book from manifest by title."""
         conn = _get_connection()

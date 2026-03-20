@@ -8,6 +8,15 @@ Launch:
 """
 
 import streamlit as st
+
+# Hide Deploy button (keep Settings)
+st.markdown("""
+<style>
+    [data-testid="stAppDeployButton"] {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
 import sys
 import json
 import requests
@@ -174,13 +183,19 @@ with st.sidebar:
         try:
             _manifest = CollectionManifest()
             _book_collections = set(_manifest.list_collection_names())
+            # Get ingested book count from manifest
+            _ingested_books = _manifest.count_books(QDRANT_COLLECTION)
         except Exception:
             _book_collections = {QDRANT_COLLECTION}
+            _ingested_books = 0
 
         if "error" not in stats:
             for coll_name, count in stats.items():
                 if coll_name in _book_collections:
                     st.metric(f"📦 {coll_name}", f"{count:,} chunks")
+            # Show ingested books count
+            if _ingested_books > 0:
+                st.metric("✅ Ingested Books", f"{_ingested_books:,}")
         else:
             st.warning("Could not load stats")
 
