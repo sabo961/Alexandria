@@ -72,18 +72,48 @@ def get_author_mode_from_db(author_sort: str) -> Optional[str]:
         return None
 
 
+def get_title_mode_from_db(title: str) -> Optional[str]:
+    """
+    Check if title matches any pattern in title_chunking table.
+    
+    Returns: 'semantic', 'fixed', or None if no match.
+    """
+    if not ALEXANDRIA_DB or not title:
+        return None
+    
+    try:
+        conn = sqlite3.connect(ALEXANDRIA_DB)
+        rows = conn.execute('SELECT pattern, mode FROM title_chunking').fetchall()
+        conn.close()
+        
+        title_lower = title.lower()
+        for pattern, mode in rows:
+            if pattern.lower() in title_lower:
+                return mode
+        return None
+    except Exception as e:
+        logger.warning(f"Title DB lookup failed: {e}")
+        return None
+
+
 def get_book_chunking_mode(author_sort: str, title: str = "") -> Tuple[Optional[str], str]:
     """
     Determine chunking mode for a book.
     
     Priority:
-    1. SQLite author_chunking table (primary)
-    2. JSON whitelist fallback (deprecated)
+    1. SQLite title_chunking patterns (highest - matches any title)
+    2. SQLite author_chunking table
+    3. JSON whitelist fallback (deprecated)
     
     Returns:
         (mode, reason) where mode is 'semantic', 'fixed', 'none', or None
     """
-    # Try SQLite first
+    # Check title patterns first (applies regardless of author)
+    title_mode = get_title_mode_from_db(title)
+    if title_mode:
+        return title_mode, f"title_chunking pattern match"
+    
+    # Then check author
     mode = get_author_mode_from_db(author_sort)
     if mode:
         return mode, f"author_chunking DB: {author_sort}"

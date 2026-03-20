@@ -612,6 +612,53 @@ with st.expander("👤 Author Curation", expanded=False):
                 
                 acol5.write(f"`{current_mode}`")
             
+            # --- Title Contains Section ---
+            st.divider()
+            st.subheader("📝 Title Contains")
+            st.caption("Patterns that match ANY title, regardless of author. Add patterns like 'alchemy', 'kabbalah', etc.")
+            
+            # Check if title_chunking table exists
+            has_title_table = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='title_chunking'"
+            ).fetchone()
+            
+            if has_title_table:
+                # Add new pattern
+                tcol1, tcol2, tcol3 = st.columns([3, 1, 1])
+                new_pattern = tcol1.text_input("New pattern", key="new_title_pattern", placeholder="e.g. alchemy")
+                new_mode = tcol2.selectbox("Mode", ["semantic", "fixed"], key="new_title_mode")
+                if tcol3.button("➕ Add", key="add_title_pattern"):
+                    if new_pattern.strip():
+                        try:
+                            from datetime import datetime
+                            conn.execute(
+                                "INSERT OR REPLACE INTO title_chunking (pattern, mode, updated_at) VALUES (?, ?, ?)",
+                                (new_pattern.strip().lower(), new_mode, datetime.now().isoformat())
+                            )
+                            conn.commit()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                
+                # List existing patterns
+                patterns = conn.execute(
+                    "SELECT pattern, mode FROM title_chunking ORDER BY pattern"
+                ).fetchall()
+                
+                if patterns:
+                    for pattern, mode in patterns:
+                        pcol1, pcol2, pcol3 = st.columns([4, 1, 1])
+                        pcol1.write(f"**{pattern}**")
+                        pcol2.write(f"`{mode}`")
+                        if pcol3.button("🗑️", key=f"del_title_{pattern}", help="Remove"):
+                            conn.execute("DELETE FROM title_chunking WHERE pattern=?", (pattern,))
+                            conn.commit()
+                            st.rerun()
+                else:
+                    st.info("No title patterns yet. Add one above.")
+            else:
+                st.warning("title_chunking table not found. Run sync first.")
+            
             conn.close()
             
     except Exception as e:
