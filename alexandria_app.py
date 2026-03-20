@@ -672,7 +672,8 @@ with st.expander("🔄 Ingest Control", expanded=False):
             if st.button("⛔ Stop Ingest", type="primary", key="stop_ingest"):
                 ok, msg = stop_ingest(ingest_pid)
                 if ok:
-                    st.success("Stopped.")
+                    st.success(f"✅ Stopped (PID {ingest_pid}). Refreshing...")
+                    import time; time.sleep(1)
                 else:
                     st.error(f"Failed: {msg}")
                 st.rerun()
@@ -680,7 +681,8 @@ with st.expander("🔄 Ingest Control", expanded=False):
             if st.button("▶️ Start Ingest", type="primary", key="start_ingest"):
                 ok, msg = start_ingest()
                 if ok:
-                    st.success("Started via Task Scheduler.")
+                    st.success("✅ Started via Task Scheduler. Refreshing...")
+                    import time; time.sleep(2)
                 else:
                     st.error(f"Failed: {msg}")
                 st.rerun()
@@ -688,6 +690,19 @@ with st.expander("🔄 Ingest Control", expanded=False):
     with col2:
         if st.button("🔄 Refresh Status", key="refresh_ingest_status"):
             st.rerun()
+
+    # Debug: show raw wmic output if no process found
+    if not ingest_pid:
+        try:
+            result = subprocess.run(
+                ['wmic', 'process', 'where', "name='python.exe'", 'get', 'processid,commandline', '/format:list'],
+                capture_output=True, text=True, timeout=5
+            )
+            python_procs = [l for l in result.stdout.splitlines() if 'batch_ingest' in l.lower()]
+            if python_procs:
+                st.warning(f"⚠️ wmic sees batch_ingest but PID parse failed: {python_procs}")
+        except Exception:
+            pass
 
     # --- Reingest books needing chunking mode change ---
     st.divider()
