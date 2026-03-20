@@ -198,7 +198,7 @@ with st.sidebar:
 
         if OPENROUTER_API_KEY:
             # Fetch Models button
-            if st.button("🔄 Fetch Models", use_container_width=True, key="fetch_models"):
+            if st.button("🔄 Fetch Models", width="stretch", key="fetch_models"):
                 with st.spinner("Fetching models..."):
                     try:
                         response = requests.get(
@@ -264,7 +264,7 @@ with st.sidebar:
     st.divider()
 
     # Refresh button
-    if st.button("🔄 Refresh All", use_container_width=True):
+    if st.button("🔄 Refresh All", width="stretch"):
         st.cache_data.clear()
         st.rerun()
 
@@ -332,7 +332,7 @@ with st.expander("📚 Calibre Library", expanded=False):
                 }
                 for b in filtered[:100]  # Limit to 100 for performance
             ])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
             if len(filtered) > 100:
                 st.caption("Showing first 100 results. Use filters to narrow down.")
@@ -388,7 +388,7 @@ with st.expander("📖 Ingested Books (Qdrant)", expanded=False):
                 }
                 for b in books_data
             ])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
         else:
             # Fallback: Query Qdrant directly
             st.caption(f"📋 Collection: {selected_coll} | Source: Qdrant (no manifest)")
@@ -410,7 +410,7 @@ with st.expander("📖 Ingested Books (Qdrant)", expanded=False):
                     }
                     for b in books_data
                 ])
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width="stretch", hide_index=True)
             else:
                 st.info("Collection is empty or could not be read.")
 
@@ -478,7 +478,7 @@ with st.expander("📊 Ingest Log", expanded=False):
                     }
                     for r in rows
                 ])
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width="stretch", hide_index=True)
                 st.caption(f"Collection: {log_collection} | Last {len(rows)} jobs")
             else:
                 st.info(f"No ingest jobs for '{log_collection}'.")
@@ -522,7 +522,7 @@ with st.expander("⚙️ Chunking Rules", expanded=False):
                         "semantic": st.column_config.CheckboxColumn("Semantic?", default=True, help="✓ = slow/quality, ✗ = fast/bulk")
                     },
                     num_rows="dynamic",
-                    use_container_width=True,
+                    width="stretch",
                     key="author_rules_editor"
                 )
             else:
@@ -548,7 +548,7 @@ with st.expander("⚙️ Chunking Rules", expanded=False):
                         "semantic": st.column_config.CheckboxColumn("Semantic?", default=True)
                     },
                     num_rows="dynamic",
-                    use_container_width=True,
+                    width="stretch",
                     key="title_rules_editor"
                 )
             else:
@@ -669,7 +669,7 @@ with st.expander("🗣️ Speaker's Corner", expanded=True):
                 temperature = st.slider("Temperature", 0.0, 1.5, 0.7, 0.1, key="speaker_temp")
 
         # Run button
-        if st.button("🚀 Ask Alexandria", type="primary", use_container_width=True):
+        if st.button("🚀 Ask Alexandria", type="primary", width="stretch"):
             if not query.strip():
                 st.warning("Please enter a question")
             else:
