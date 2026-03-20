@@ -625,6 +625,117 @@ with st.expander("⚙️ Chunking Rules", expanded=False):
             st.rerun()
 
 # =============================================================================
+# SECTION 3a: Author Curation
+# =============================================================================
+
+with st.expander("👤 Author Curation", expanded=False):
+    st.caption("Manage author → chunking mode mapping. Only 'semantic' and 'fixed' authors get ingested.")
+    
+    try:
+        import sqlite3
+        
+        if not ALEXANDRIA_DB:
+            st.warning("ALEXANDRIA_DB not configured.")
+        else:
+            conn = sqlite3.connect(ALEXANDRIA_DB)
+            conn.row_factory = sqlite3.Row
+            
+            # Stats
+            stats = conn.execute('''
+                SELECT mode, COUNT(*) as cnt, SUM(book_count) as books
+                FROM author_chunking GROUP BY mode
+            ''').fetchall()
+            
+            col1, col2, col3, col4 = st.columns(4)
+            for row in stats:
+                if row['mode'] == 'semantic':
+                    col1.metric("🟢 Semantic", f"{row['cnt']} ({row['books'] or 0} books)")
+                elif row['mode'] == 'fixed':
+                    col2.metric("🔵 Fixed", f"{row['cnt']} ({row['books'] or 0} books)")
+                elif row['mode'] == 'none':
+                    col3.metric("⚪ None", f"{row['cnt']} ({row['books'] or 0} books)")
+            
+            st.divider()
+            
+            # Filters
+            fcol1, fcol2, fcol3 = st.columns([2, 1, 1])
+            search = fcol1.text_input("🔍 Search author", key="author_search", placeholder="e.g. Jung")
+            mode_filter = fcol2.selectbox("Mode", ["all", "semantic", "fixed", "none"], key="author_mode_filter")
+            page_size = fcol3.selectbox("Per page", [25, 50, 100], key="author_page_size")
+            
+            # Pagination
+            if 'author_page' not in st.session_state:
+                st.session_state.author_page = 0
+            
+            # Build query
+            query = "SELECT author_sort, mode, book_count FROM author_chunking WHERE 1=1"
+            params = []
+            if search:
+                query += " AND author_sort LIKE ?"
+                params.append(f"%{search}%")
+            if mode_filter != "all":
+                query += " AND mode = ?"
+                params.append(mode_filter)
+            
+            # Count total
+            count_query = query.replace("SELECT author_sort, mode, book_count", "SELECT COUNT(*)")
+            total = conn.execute(count_query, params).fetchone()[0]
+            total_pages = max(1, (total + page_size - 1) // page_size)
+            
+            # Clamp page
+            st.session_state.author_page = max(0, min(st.session_state.author_page, total_pages - 1))
+            offset = st.session_state.author_page * page_size
+            
+            # Fetch page
+            query += f" ORDER BY author_sort LIMIT {page_size} OFFSET {offset}"
+            authors = conn.execute(query, params).fetchall()
+            
+            # Pagination controls
+            pcol1, pcol2, pcol3 = st.columns([1, 2, 1])
+            if pcol1.button("⬅️ Prev", disabled=st.session_state.author_page == 0):
+                st.session_state.author_page -= 1
+                st.rerun()
+            pcol2.write(f"Page {st.session_state.author_page + 1} of {total_pages} ({total} authors)")
+            if pcol3.button("Next ➡️", disabled=st.session_state.author_page >= total_pages - 1):
+                st.session_state.author_page += 1
+                st.rerun()
+            
+            # Display authors with toggle buttons
+            for row in authors:
+                author = row['author_sort']
+                current_mode = row['mode']
+                books = row['book_count'] or 0
+                
+                acol1, acol2, acol3, acol4, acol5 = st.columns([4, 1, 1, 1, 1])
+                acol1.write(f"**{author}** ({books} books)")
+                
+                # Mode buttons
+                if acol2.button("🟢", key=f"sem_{author}", help="Set semantic", 
+                               disabled=current_mode == 'semantic', type="primary" if current_mode == 'semantic' else "secondary"):
+                    conn.execute("UPDATE author_chunking SET mode='semantic' WHERE author_sort=?", (author,))
+                    conn.commit()
+                    st.rerun()
+                
+                if acol3.button("🔵", key=f"fix_{author}", help="Set fixed",
+                               disabled=current_mode == 'fixed', type="primary" if current_mode == 'fixed' else "secondary"):
+                    conn.execute("UPDATE author_chunking SET mode='fixed' WHERE author_sort=?", (author,))
+                    conn.commit()
+                    st.rerun()
+                
+                if acol4.button("⚪", key=f"non_{author}", help="Set none (skip)",
+                               disabled=current_mode == 'none', type="primary" if current_mode == 'none' else "secondary"):
+                    conn.execute("UPDATE author_chunking SET mode='none' WHERE author_sort=?", (author,))
+                    conn.commit()
+                    st.rerun()
+                
+                acol5.write(f"`{current_mode}`")
+            
+            conn.close()
+            
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+# =============================================================================
 # SECTION 3b: Ingest Control
 # =============================================================================
 
