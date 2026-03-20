@@ -32,7 +32,7 @@ from config import (
     ALEXANDRIA_DB,
 )
 from chunking_policy import load_whitelist, get_books_needing_reingest
-from ingest_books import ingest_book, delete_book_from_qdrant
+from ingest_books import ingest_book, delete_book_chunks
 from calibre_db import CalibreDB
 
 logging.basicConfig(
@@ -119,8 +119,8 @@ def main():
         # Delete existing chunks
         print(f"  Deleting existing chunks...")
         try:
-            delete_book_from_qdrant(
-                title=title,
+            delete_book_chunks(
+                book_title=title,
                 collection_name='alexandria',
                 qdrant_host=QDRANT_HOST,
                 qdrant_port=QDRANT_PORT
