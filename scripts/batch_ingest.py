@@ -42,8 +42,9 @@ from config import (
     DEFAULT_EMBEDDING_MODEL,
 )
 from ingest_books import ingest_book
-from chunking_policy import load_whitelist, should_use_semantic
+from chunking_policy import load_whitelist, should_use_semantic, get_book_chunking_mode
 from collection_manifest import CollectionManifest
+from calibre_db import CalibreDB
 
 logging.basicConfig(
     level=logging.INFO,
@@ -160,12 +161,13 @@ def batch_ingest(
     semantic_count = 0
     fixed_count = 0
     
-    # Load whitelist and manifest once for the whole batch
-    whitelist = load_whitelist()
-    logger.info(f"Loaded semantic whitelist: {len(whitelist.get('authors', []))} authors, {len(whitelist.get('title_contains', []))} title patterns")
-
+    # Load manifest and Calibre DB once for the whole batch
     manifest = CollectionManifest(collection_name=collection_name)
+    calibre_db = CalibreDB()
+    whitelist = load_whitelist()  # Fallback only
+    
     skipped_count = 0
+    skipped_none = 0  # Authors with mode='none'
 
     for i, book_path in enumerate(books, 1):
         book_start = time.time()
@@ -178,24 +180,36 @@ def batch_ingest(
         else:
             eta_str = ""
 
-        # Extract title/author from filename for whitelist check
-        # Format: "Title - Author.epub" or just "Title.epub"
-        stem = book_path.stem
-        if ' - ' in stem:
-            parts = stem.rsplit(' - ', 1)
-            title_guess = parts[0]
-            author_guess = parts[1] if len(parts) > 1 else ''
+        # Get real metadata from Calibre
+        calibre_book = calibre_db.find_book_by_path(str(book_path))
+        if calibre_book:
+            title = calibre_book.title
+            author_sort = calibre_book.author  # This is author_sort from Calibre
         else:
-            title_guess = stem
-            author_guess = ''
+            # Fallback to filename parsing
+            stem = book_path.stem
+            if ' - ' in stem:
+                parts = stem.rsplit(' - ', 1)
+                title = parts[0]
+                author_sort = parts[1] if len(parts) > 1 else ''
+            else:
+                title = stem
+                author_sort = ''
         
-        # Determine chunking mode based on whitelist
-        use_semantic, reason = should_use_semantic(title_guess, author_guess, whitelist)
-        mode_str = "SEMANTIC" if use_semantic else "FIXED"
+        # Get chunking mode from SQLite (primary) or JSON (fallback)
+        mode, reason = get_book_chunking_mode(author_sort, title)
+        
+        # Skip if mode is 'none' (not yet curated)
+        if mode == 'none' or mode is None:
+            # Don't spam log for every skipped book
+            skipped_none += 1
+            continue
+        
+        use_semantic = (mode == 'semantic')
+        mode_str = mode.upper()
 
         # Skip if already tracked in manifest (prevents duplicate ingestion)
-        title_guess_for_check = title_guess  # best-effort title from filename
-        if manifest.is_ingested(collection_name, title_guess_for_check):
+        if manifest.is_ingested(collection_name, title):
             print(f"\n[{i}/{total}] [SKIP] {book_path.name} (already in manifest)", flush=True)
             skipped_count += 1
             continue
@@ -274,7 +288,8 @@ def batch_ingest(
     print(f"BATCH INGESTION SUMMARY")
     print(f"{'='*70}")
     print(f"Total books:   {total}")
-    print(f"Skipped:       {skipped_count} (already in manifest or bad metadata)")
+    print(f"Not curated:   {skipped_none} (author mode='none', skipped)")
+    print(f"Already done:  {skipped_count} (in manifest)")
     print(f"Succeeded:     {success_count} (fixed: {fixed_count}, semantic: {semantic_count})")
     print(f"Failed:        {failed_count}")
     print(f"Duration:      {format_duration(total_duration)}")

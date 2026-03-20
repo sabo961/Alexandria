@@ -4,15 +4,19 @@
 Alexandria Chunking Policy
 ==========================
 
-Determines whether a book should use semantic or fixed chunking
-based on whitelist configuration.
+Determines whether a book should use semantic or fixed chunking.
+Primary source: author_chunking SQLite table.
+Fallback: JSON whitelist (deprecated).
 """
 
 import json
 import os
+import sqlite3
 import logging
 from pathlib import Path
 from typing import Optional, Tuple
+
+from config import ALEXANDRIA_DB
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,55 @@ def load_whitelist(whitelist_path: Optional[str] = None) -> dict:
         data = json.load(f)
     
     return data
+
+
+def get_author_mode_from_db(author_sort: str) -> Optional[str]:
+    """
+    Get chunking mode for author from SQLite database.
+    
+    Returns: 'semantic', 'fixed', 'none', or None if not found.
+    """
+    if not ALEXANDRIA_DB:
+        return None
+    
+    try:
+        conn = sqlite3.connect(ALEXANDRIA_DB)
+        row = conn.execute(
+            'SELECT mode FROM author_chunking WHERE author_sort = ?',
+            (author_sort,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception as e:
+        logger.warning(f"DB lookup failed for '{author_sort}': {e}")
+        return None
+
+
+def get_book_chunking_mode(author_sort: str, title: str = "") -> Tuple[Optional[str], str]:
+    """
+    Determine chunking mode for a book.
+    
+    Priority:
+    1. SQLite author_chunking table (primary)
+    2. JSON whitelist fallback (deprecated)
+    
+    Returns:
+        (mode, reason) where mode is 'semantic', 'fixed', 'none', or None
+    """
+    # Try SQLite first
+    mode = get_author_mode_from_db(author_sort)
+    if mode:
+        return mode, f"author_chunking DB: {author_sort}"
+    
+    # Fallback to JSON whitelist
+    rules = load_whitelist()
+    use_semantic, reason = should_use_semantic(title, author_sort, rules)
+    
+    if reason != "no rule match (default: fixed)":
+        return 'semantic' if use_semantic else 'fixed', f"JSON whitelist: {reason}"
+    
+    # No match anywhere
+    return None, "no match in DB or whitelist"
 
 
 def should_use_semantic(
