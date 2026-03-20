@@ -69,6 +69,56 @@ import torch
 if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = True
 
+# ============================================================================
+# METADATA VALIDATION (skip junk entries)
+# ============================================================================
+
+# Blacklisted metadata patterns (junk entries from bad PDF metadata)
+_BAD_TITLE_PATTERNS = [
+    '.doc', '.indd', '.wpd', '.rtf',  # Office file extensions in title
+    'microsoft word', 'untitled',  # Generic placeholders
+    'c:\\', 'd:\\', '/tmp/', '/var/',  # File paths as titles
+]
+_BAD_TITLE_EXACT = ['title', '?', '??', '...', '-', '_', '']
+_BAD_AUTHOR_EXACT = [
+    'valued customer', 'www', 'unknown', 'admin', 'user', 
+    'owner', 'author', '?', '??', '-', '_', '.', ''
+]
+
+
+def _validate_book_metadata(title: str, author: str) -> tuple:
+    """
+    Check if book metadata is valid for ingestion.
+    
+    Returns:
+        (is_valid, reason) tuple
+    """
+    title_lower = title.lower().strip() if title else ''
+    author_lower = author.lower().strip() if author else ''
+    
+    # Empty or too short title
+    if len(title_lower) < 2:
+        return False, f"Title too short or empty: '{title}'"
+    
+    # Title is exact match to bad placeholder
+    if title_lower in _BAD_TITLE_EXACT:
+        return False, f"Invalid title placeholder: '{title}'"
+    
+    # Bad title patterns (substring match)
+    for pattern in _BAD_TITLE_PATTERNS:
+        if pattern in title_lower:
+            return False, f"Title contains junk pattern '{pattern}': '{title}'"
+    
+    # Empty author with suspicious title - reject
+    if len(author_lower) < 2 and len(title_lower) < 5:
+        return False, f"Both title and author are too short: '{title}' by '{author}'"
+    
+    # Bad author exact match
+    if author_lower in _BAD_AUTHOR_EXACT:
+        return False, f"Author is placeholder: '{author}'"
+    
+    return True, "OK"
+
 # Setup logging - configurable via ALEXANDRIA_LOG_LEVEL environment variable
 # Usage: export ALEXANDRIA_LOG_LEVEL=DEBUG or ALEXANDRIA_LOG_LEVEL=INFO
 log_level_str = os.getenv('ALEXANDRIA_LOG_LEVEL', 'INFO').upper()
@@ -972,6 +1022,12 @@ def ingest_book(
     title = metadata.get('title', 'Unknown')
     author = metadata.get('author', 'Unknown')
     logging.info(f"Ingesting: \"{title}\" by {author}")
+
+    # Validate metadata - skip junk entries
+    is_valid, skip_reason = _validate_book_metadata(title, author)
+    if not is_valid:
+        logging.warning(f"[SKIP] Bad metadata: {skip_reason}")
+        return {'success': False, 'error': f"Skipped: {skip_reason}", 'skipped': True}
 
     # Resolve model_id early for consistent usage
     effective_model_id = model_id or DEFAULT_EMBEDDING_MODEL

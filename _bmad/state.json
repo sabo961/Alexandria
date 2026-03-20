@@ -3,23 +3,19 @@
   "projectPath": "/Users/sabo/repos/Alexandria",
   "createdAt": "2026-03-16T22:38:00.000Z",
   "currentPhase": "analysis",
-  "activeWorkflow": {
-    "id": "quick-dev",
-    "agentId": "quick-flow-solo-dev",
-    "agentName": "Barry",
-    "mode": "yolo",
-    "currentStep": 3,
-    "totalSteps": 6,
-    "currentStepFile": "/Users/sabo/.openclaw/_bmad/bmm/workflows/bmad-quick-flow/bmad-quick-dev/steps/step-03-execute.md",
-    "outputFile": "",
-    "startedAt": "2026-03-20T10:01:13.621Z"
-  },
+  "activeWorkflow": null,
   "completedWorkflows": [
     {
       "id": "quick-spec",
       "agentId": "quick-flow-solo-dev",
       "outputFile": "",
       "completedAt": "2026-03-20T10:01:08.466Z"
+    },
+    {
+      "id": "quick-dev",
+      "agentId": "quick-flow-solo-dev",
+      "outputFile": "",
+      "completedAt": "2026-03-20T10:06:13.100Z"
     }
   ]
 }

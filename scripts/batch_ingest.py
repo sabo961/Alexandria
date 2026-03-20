@@ -64,6 +64,8 @@ class BookTimeoutError(Exception):
 BOOK_FORMATS = {'.epub', '.pdf', '.txt', '.md', '.html', '.htm'}
 
 
+
+
 def find_books(directory: str) -> List[Path]:
     """
     Recursively find all supported book files in directory.
@@ -229,6 +231,11 @@ def batch_ingest(
                     semantic_count += 1
                 else:
                     fixed_count += 1
+            elif result.get('skipped'):
+                # Bad metadata - skip without counting as failure
+                error = result.get('error', 'Bad metadata')
+                print(f"  [SKIP] {error}", flush=True)
+                skipped_count += 1
             else:
                 error = result.get('error', 'Unknown error')
                 print(f"  [FAIL] {error}", flush=True)
@@ -267,7 +274,7 @@ def batch_ingest(
     print(f"BATCH INGESTION SUMMARY")
     print(f"{'='*70}")
     print(f"Total books:   {total}")
-    print(f"Skipped:       {skipped_count} (already in manifest)")
+    print(f"Skipped:       {skipped_count} (already in manifest or bad metadata)")
     print(f"Succeeded:     {success_count} (fixed: {fixed_count}, semantic: {semantic_count})")
     print(f"Failed:        {failed_count}")
     print(f"Duration:      {format_duration(total_duration)}")
