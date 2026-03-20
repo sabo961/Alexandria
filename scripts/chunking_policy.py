@@ -162,37 +162,65 @@ def should_use_semantic(
 
 def get_books_needing_reingest(db_path: str, whitelist: Optional[dict] = None) -> list:
     """
-    Find books where current chunking_mode doesn't match whitelist policy.
+    Find books where current chunking_mode doesn't match author_chunking policy.
     
-    Returns list of (book_title, author, current_mode, should_be_mode)
+    Uses SQLite author_chunking table as primary source.
+    
+    Returns list of dicts with title, author, current_mode, should_be
     """
     import sqlite3
     
-    if whitelist is None:
-        whitelist = load_whitelist()
-    
     conn = sqlite3.connect(db_path)
-    cursor = conn.execute(
-        "SELECT DISTINCT book_title, author, chunking_mode FROM ingest_log WHERE success=1"
-    )
+    
+    # Check if author_chunking table exists
+    has_author_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='author_chunking'"
+    ).fetchone()
+    
+    if not has_author_table:
+        # Fallback to old JSON-based logic
+        if whitelist is None:
+            whitelist = load_whitelist()
+        
+        cursor = conn.execute(
+            "SELECT DISTINCT book_title, author, chunking_mode FROM ingest_log WHERE success=1"
+        )
+        needs_reingest = []
+        for row in cursor:
+            title, author, current_mode = row
+            current_mode = current_mode or 'fixed'
+            should_semantic, reason = should_use_semantic(title, author, whitelist)
+            should_mode = 'semantic' if should_semantic else 'fixed'
+            if current_mode != should_mode:
+                needs_reingest.append({
+                    'title': title, 'author': author,
+                    'current_mode': current_mode, 'should_be': should_mode, 'reason': reason
+                })
+        conn.close()
+        return needs_reingest
+    
+    # Use SQLite author_chunking table (primary source)
+    cursor = conn.execute("""
+        SELECT il.book_title, il.author, il.chunking_mode, ac.mode
+        FROM ingest_log il
+        LEFT JOIN author_chunking ac ON il.author = ac.author_sort
+        WHERE il.success = 1
+          AND ac.mode IS NOT NULL
+          AND ac.mode != 'none'
+          AND (il.chunking_mode IS NULL OR il.chunking_mode != ac.mode)
+    """)
     
     needs_reingest = []
-    
     for row in cursor:
-        title, author, current_mode = row
-        current_mode = current_mode or 'fixed'  # Old entries before field existed default to fixed
-        
-        should_semantic, reason = should_use_semantic(title, author, whitelist)
-        should_mode = 'semantic' if should_semantic else 'fixed'
-        
-        if current_mode != should_mode:
-            needs_reingest.append({
-                'title': title,
-                'author': author,
-                'current_mode': current_mode,
-                'should_be': should_mode,
-                'reason': reason
-            })
+        title, author, current_mode, should_mode = row
+        current_mode = current_mode or 'fixed'  # Old entries default to fixed
+        needs_reingest.append({
+            'title': title,
+            'author': author,
+            'current_mode': current_mode,
+            'should_be': should_mode,
+            'reason': f'author_chunking: {author}'
+        })
     
     conn.close()
     return needs_reingest
