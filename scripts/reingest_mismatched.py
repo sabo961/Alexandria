@@ -29,7 +29,7 @@ from config import (
     CALIBRE_LIBRARY_PATH,
     QDRANT_HOST,
     QDRANT_PORT,
-    INGEST_LOG_DB,
+    ALEXANDRIA_DB,
 )
 from chunking_policy import load_whitelist, get_books_needing_reingest
 from ingest_books import ingest_book, delete_book_from_qdrant
@@ -73,7 +73,7 @@ def main():
     logger.info(f"Loaded whitelist: {len(whitelist.get('authors', []))} authors")
 
     # Find mismatched books
-    mismatched = get_books_needing_reingest(str(INGEST_LOG_DB), whitelist)
+    mismatched = get_books_needing_reingest(str(ALEXANDRIA_DB), whitelist)
     
     if not mismatched:
         print("All books have correct chunking mode. Nothing to do.")

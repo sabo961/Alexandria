@@ -722,44 +722,38 @@ with st.expander("🔄 Ingest Control", expanded=False):
     # --- Reingest books needing chunking mode change ---
     st.divider()
     st.subheader("♻️ Reingest — Chunking Mismatch")
-    st.caption("Books already ingested with fixed chunking that now match a semantic rule (or vice versa).")
+    st.caption("Books already ingested with wrong chunking mode for current whitelist.")
 
     try:
         from chunking_policy import get_books_needing_reingest
-        db_path = str(ALEXANDRIA_DB) if 'ALEXANDRIA_DB' in dir() else ''
-        if not db_path:
-            import os
-            db_path = os.environ.get('ALEXANDRIA_DB', '')
+        db_path = str(ALEXANDRIA_DB) if ALEXANDRIA_DB else ''
 
         if db_path:
-            mismatched = get_books_needing_reingest(db_path)
-            if mismatched:
-                import pandas as pd
-                df_mm = pd.DataFrame(mismatched)[["title", "author", "current_mode", "should_be"]]
-                df_mm.columns = ["Title", "Author", "Current Mode", "Should Be"]
-                st.dataframe(df_mm, width="stretch", hide_index=True)
-                st.caption(f"{len(mismatched)} book(s) need reingest to apply current chunking rules.")
-
-                if st.button("♻️ Reingest Mismatched Books", type="secondary", key="reingest_mismatch"):
-                    if ingest_pid:
-                        st.warning("Stop current ingest first before running reingest.")
-                    else:
-                        st.info("Starting reingest of mismatched books... check ingest log for progress.")
-                        try:
-                            subprocess.Popen(
-                                ['python', 'reingest_mismatched.py', '--yes'],
-                                cwd=str(project_root / 'scripts'),
-                                creationflags=subprocess.CREATE_NEW_CONSOLE if platform.system() == "Windows" else 0
-                            )
-                            st.success("Reingest launched.")
-                        except Exception as e:
-                            st.error(f"Failed to launch: {e}")
-            else:
-                st.success("✅ All ingested books match current chunking rules.")
+            # Lazy load - only check when button clicked
+            if st.button("🔍 Check for Mismatches", key="check_mismatch"):
+                with st.spinner("Checking..."):
+                    mismatched = get_books_needing_reingest(db_path)
+                    st.session_state['mismatched_books'] = mismatched
+            
+            mismatched = st.session_state.get('mismatched_books', None)
+            
+            if mismatched is not None:
+                if mismatched:
+                    st.warning(f"{len(mismatched)} book(s) need reingest.")
+                    # Show only first 20 to avoid browser crash
+                    import pandas as pd
+                    display_data = mismatched[:20]
+                    df_mm = pd.DataFrame(display_data)[["title", "author", "current_mode", "should_be"]]
+                    df_mm.columns = ["Title", "Author", "Current", "Should Be"]
+                    st.dataframe(df_mm, width="stretch", hide_index=True)
+                    if len(mismatched) > 20:
+                        st.caption(f"Showing first 20 of {len(mismatched)}...")
+                else:
+                    st.success("✅ All books match current chunking rules.")
         else:
-            st.warning("ALEXANDRIA_DB not configured — cannot check mismatches.")
+            st.warning("ALEXANDRIA_DB not configured.")
     except Exception as e:
-        st.error(f"Could not check mismatches: {e}")
+        st.error(f"Error: {e}")
 
 # =============================================================================
 # SECTION 4: Speaker's Corner

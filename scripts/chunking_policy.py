@@ -127,7 +127,7 @@ def get_books_needing_reingest(db_path: str, whitelist: Optional[dict] = None) -
     
     for row in cursor:
         title, author, current_mode = row
-        current_mode = current_mode or 'semantic'  # Old entries before field existed
+        current_mode = current_mode or 'fixed'  # Old entries before field existed default to fixed
         
         should_semantic, reason = should_use_semantic(title, author, whitelist)
         should_mode = 'semantic' if should_semantic else 'fixed'
