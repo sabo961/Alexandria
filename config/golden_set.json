@@ -1,0 +1,409 @@
+{
+  "_comment": "Golden set for Alexandria RAG evaluation. 50 queries with expected relevant sources.",
+  "_created": "2026-03-20",
+  
+  "queries": [
+    {
+      "id": "thelema-01",
+      "question": "What is the core teaching of Thelema?",
+      "expected_books": ["The Book of the Law", "Liber II", "Duty"],
+      "expected_authors": ["Crowley"],
+      "min_relevant": 2,
+      "category": "occult"
+    },
+    {
+      "id": "jung-01",
+      "question": "What is the collective unconscious according to Jung?",
+      "expected_books": ["The Archetypes and the Collective Unconscious", "Man and His Symbols"],
+      "expected_authors": ["Jung"],
+      "min_relevant": 2,
+      "category": "psychology"
+    },
+    {
+      "id": "jung-02",
+      "question": "Explain Jung's concept of the Shadow",
+      "expected_books": ["Aion", "The Archetypes and the Collective Unconscious"],
+      "expected_authors": ["Jung"],
+      "min_relevant": 2,
+      "category": "psychology"
+    },
+    {
+      "id": "heidegger-01",
+      "question": "What is Dasein in Heidegger's philosophy?",
+      "expected_books": ["Being and Time"],
+      "expected_authors": ["Heidegger"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "nietzsche-01",
+      "question": "What does Nietzsche mean by the will to power?",
+      "expected_books": ["Thus Spoke Zarathustra", "Beyond Good and Evil"],
+      "expected_authors": ["Nietzsche"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "nietzsche-02",
+      "question": "Explain the concept of eternal recurrence",
+      "expected_books": ["Thus Spoke Zarathustra", "The Gay Science"],
+      "expected_authors": ["Nietzsche"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "tolkien-01",
+      "question": "What is the significance of the One Ring?",
+      "expected_books": ["The Lord of the Rings", "The Silmarillion"],
+      "expected_authors": ["Tolkien"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "tolkien-02",
+      "question": "Who are the Valar in Tolkien's mythology?",
+      "expected_books": ["The Silmarillion"],
+      "expected_authors": ["Tolkien"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "dostoevsky-01",
+      "question": "What is the theme of crime and punishment in Dostoevsky?",
+      "expected_books": ["Crime and Punishment", "The Brothers Karamazov"],
+      "expected_authors": ["Dostoevsky", "Dostojevski"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "dostoevsky-02",
+      "question": "What is the Grand Inquisitor parable about?",
+      "expected_books": ["The Brothers Karamazov"],
+      "expected_authors": ["Dostoevsky", "Dostojevski"],
+      "min_relevant": 1,
+      "category": "literature"
+    },
+    {
+      "id": "mckenna-01",
+      "question": "What is Terence McKenna's theory about psychedelics and evolution?",
+      "expected_books": ["Food of the Gods", "The Archaic Revival"],
+      "expected_authors": ["McKenna"],
+      "min_relevant": 2,
+      "category": "psychedelics"
+    },
+    {
+      "id": "mckenna-02",
+      "question": "Explain the stoned ape theory",
+      "expected_books": ["Food of the Gods"],
+      "expected_authors": ["McKenna"],
+      "min_relevant": 1,
+      "category": "psychedelics"
+    },
+    {
+      "id": "grof-01",
+      "question": "What are perinatal matrices in Grof's psychology?",
+      "expected_books": ["Realms of the Human Unconscious", "The Holotropic Mind"],
+      "expected_authors": ["Grof"],
+      "min_relevant": 2,
+      "category": "psychology"
+    },
+    {
+      "id": "hillman-01",
+      "question": "What is archetypal psychology?",
+      "expected_books": ["Re-Visioning Psychology", "The Soul's Code"],
+      "expected_authors": ["Hillman"],
+      "min_relevant": 2,
+      "category": "psychology"
+    },
+    {
+      "id": "vonfranz-01",
+      "question": "What is the meaning of fairy tales according to Marie-Louise von Franz?",
+      "expected_books": ["The Interpretation of Fairy Tales", "Shadow and Evil in Fairy Tales"],
+      "expected_authors": ["von Franz"],
+      "min_relevant": 2,
+      "category": "psychology"
+    },
+    {
+      "id": "plato-01",
+      "question": "What is Plato's theory of Forms?",
+      "expected_books": ["The Republic", "Phaedo"],
+      "expected_authors": ["Plato", "Platon"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "plato-02",
+      "question": "Explain the Allegory of the Cave",
+      "expected_books": ["The Republic"],
+      "expected_authors": ["Plato", "Platon"],
+      "min_relevant": 1,
+      "category": "philosophy"
+    },
+    {
+      "id": "aristotle-01",
+      "question": "What is Aristotle's concept of eudaimonia?",
+      "expected_books": ["Nicomachean Ethics"],
+      "expected_authors": ["Aristotle", "Aristotel"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "kant-01",
+      "question": "What is the categorical imperative?",
+      "expected_books": ["Critique of Pure Reason", "Groundwork of the Metaphysics of Morals"],
+      "expected_authors": ["Kant"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "schopenhauer-01",
+      "question": "What is Schopenhauer's concept of Will?",
+      "expected_books": ["The World as Will and Representation"],
+      "expected_authors": ["Schopenhauer"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "wittgenstein-01",
+      "question": "What does Wittgenstein mean by language games?",
+      "expected_books": ["Philosophical Investigations"],
+      "expected_authors": ["Wittgenstein"],
+      "min_relevant": 2,
+      "category": "philosophy"
+    },
+    {
+      "id": "crowley-02",
+      "question": "What is the Holy Guardian Angel in Crowley's system?",
+      "expected_books": ["Magick in Theory and Practice", "Liber Samekh"],
+      "expected_authors": ["Crowley"],
+      "min_relevant": 2,
+      "category": "occult"
+    },
+    {
+      "id": "regardie-01",
+      "question": "What is the structure of the Golden Dawn system?",
+      "expected_books": ["The Golden Dawn", "The Tree of Life"],
+      "expected_authors": ["Regardie"],
+      "min_relevant": 2,
+      "category": "occult"
+    },
+    {
+      "id": "fortune-01",
+      "question": "What is the Qabalistic Tree of Life?",
+      "expected_books": ["The Mystical Qabalah"],
+      "expected_authors": ["Fortune"],
+      "min_relevant": 2,
+      "category": "occult"
+    },
+    {
+      "id": "agrippa-01",
+      "question": "What are the three books of occult philosophy about?",
+      "expected_books": ["Three Books of Occult Philosophy"],
+      "expected_authors": ["Agrippa"],
+      "min_relevant": 2,
+      "category": "occult"
+    },
+    {
+      "id": "buddhism-01",
+      "question": "What are the Four Noble Truths?",
+      "expected_books": [],
+      "expected_authors": ["Thich Nhat", "Suzuki", "Ajahn"],
+      "min_relevant": 2,
+      "category": "buddhism"
+    },
+    {
+      "id": "buddhism-02",
+      "question": "What is the concept of emptiness (sunyata)?",
+      "expected_books": [],
+      "expected_authors": ["Suzuki", "Trungpa"],
+      "min_relevant": 2,
+      "category": "buddhism"
+    },
+    {
+      "id": "trungpa-01",
+      "question": "What is spiritual materialism?",
+      "expected_books": ["Cutting Through Spiritual Materialism"],
+      "expected_authors": ["Trungpa"],
+      "min_relevant": 2,
+      "category": "buddhism"
+    },
+    {
+      "id": "borges-01",
+      "question": "What themes appear in Borges' fiction?",
+      "expected_books": ["Ficciones", "The Aleph", "Labyrinths"],
+      "expected_authors": ["Borges"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "hesse-01",
+      "question": "What is the journey of self-discovery in Siddhartha?",
+      "expected_books": ["Siddhartha", "Steppenwolf"],
+      "expected_authors": ["Hesse"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "blake-01",
+      "question": "What is Blake's concept of contraries?",
+      "expected_books": ["The Marriage of Heaven and Hell", "Songs of Innocence and Experience"],
+      "expected_authors": ["Blake"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "hofmann-01",
+      "question": "How was LSD discovered?",
+      "expected_books": ["LSD: My Problem Child"],
+      "expected_authors": ["Hofmann"],
+      "min_relevant": 1,
+      "category": "psychedelics"
+    },
+    {
+      "id": "shulgin-01",
+      "question": "What is PIHKAL about?",
+      "expected_books": ["PIHKAL", "TIHKAL"],
+      "expected_authors": ["Shulgin"],
+      "min_relevant": 1,
+      "category": "psychedelics"
+    },
+    {
+      "id": "muraresku-01",
+      "question": "What is the theory about psychedelics in ancient religions?",
+      "expected_books": ["The Immortality Key"],
+      "expected_authors": ["Muraresku"],
+      "min_relevant": 1,
+      "category": "psychedelics"
+    },
+    {
+      "id": "wasson-01",
+      "question": "What is the soma hypothesis?",
+      "expected_books": ["Soma: Divine Mushroom of Immortality"],
+      "expected_authors": ["Wasson"],
+      "min_relevant": 1,
+      "category": "psychedelics"
+    },
+    {
+      "id": "neumann-01",
+      "question": "What is the hero archetype's development?",
+      "expected_books": ["The Origins and History of Consciousness"],
+      "expected_authors": ["Neumann"],
+      "min_relevant": 2,
+      "category": "psychology"
+    },
+    {
+      "id": "tolstoy-01",
+      "question": "What are the main themes in War and Peace?",
+      "expected_books": ["War and Peace"],
+      "expected_authors": ["Tolstoy", "Tolstoj"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "bulgakov-01",
+      "question": "What is the meaning of The Master and Margarita?",
+      "expected_books": ["The Master and Margarita"],
+      "expected_authors": ["Bulgakov"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "nabokov-01",
+      "question": "What narrative techniques does Nabokov use?",
+      "expected_books": ["Lolita", "Pale Fire"],
+      "expected_authors": ["Nabokov"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "chekhov-01",
+      "question": "What is Chekhov's approach to drama?",
+      "expected_books": ["The Cherry Orchard", "Three Sisters"],
+      "expected_authors": ["Chekhov", "Čehov"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "gogol-01",
+      "question": "What is the grotesque in Gogol's writing?",
+      "expected_books": ["Dead Souls", "The Nose"],
+      "expected_authors": ["Gogol"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "pushkin-01",
+      "question": "What is Eugene Onegin about?",
+      "expected_books": ["Eugene Onegin"],
+      "expected_authors": ["Pushkin"],
+      "min_relevant": 1,
+      "category": "literature"
+    },
+    {
+      "id": "arch-01",
+      "question": "What are microservices architecture patterns?",
+      "expected_books": [],
+      "expected_authors": [],
+      "title_contains": ["architecture", "microservice"],
+      "min_relevant": 2,
+      "category": "technical"
+    },
+    {
+      "id": "arch-02",
+      "question": "What is domain-driven design?",
+      "expected_books": ["Domain-Driven Design"],
+      "expected_authors": ["Evans"],
+      "title_contains": ["domain"],
+      "min_relevant": 2,
+      "category": "technical"
+    },
+    {
+      "id": "castaneda-01",
+      "question": "What is the path of the warrior in Castaneda's work?",
+      "expected_books": ["The Teachings of Don Juan", "A Separate Reality"],
+      "expected_authors": ["Castaneda"],
+      "min_relevant": 2,
+      "category": "psychedelics"
+    },
+    {
+      "id": "castaneda-02",
+      "question": "What is the concept of stopping the world?",
+      "expected_books": ["Journey to Ixtlan", "A Separate Reality"],
+      "expected_authors": ["Castaneda"],
+      "min_relevant": 2,
+      "category": "psychedelics"
+    },
+    {
+      "id": "levi-01",
+      "question": "What is transcendental magic according to Eliphas Levi?",
+      "expected_books": ["Transcendental Magic", "Dogme et Rituel"],
+      "expected_authors": ["Lévi", "Levi"],
+      "min_relevant": 2,
+      "category": "occult"
+    },
+    {
+      "id": "solzhenitsyn-01",
+      "question": "What is the gulag system in Solzhenitsyn's writing?",
+      "expected_books": ["The Gulag Archipelago", "One Day in the Life of Ivan Denisovich"],
+      "expected_authors": ["Solzhenitsyn"],
+      "min_relevant": 2,
+      "category": "literature"
+    },
+    {
+      "id": "turgenev-01",
+      "question": "What is nihilism in Fathers and Sons?",
+      "expected_books": ["Fathers and Sons"],
+      "expected_authors": ["Turgenev"],
+      "min_relevant": 1,
+      "category": "literature"
+    },
+    {
+      "id": "general-01",
+      "question": "What is the relationship between consciousness and reality?",
+      "expected_books": [],
+      "expected_authors": ["Jung", "Heidegger", "Grof", "McKenna"],
+      "min_relevant": 3,
+      "category": "cross-domain"
+    }
+  ]
+}

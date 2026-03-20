@@ -248,6 +248,17 @@ from qdrant_client import QdrantClient
 
 # Import from central config
 from config import QDRANT_HOST, QDRANT_PORT, QDRANT_COLLECTION, OPENROUTER_API_KEY
+
+# Phoenix observability (lazy init)
+try:
+    from phoenix_init import get_tracer, is_phoenix_enabled
+    PHOENIX_AVAILABLE = True
+except ImportError:
+    PHOENIX_AVAILABLE = False
+    def get_tracer():
+        return None
+    def is_phoenix_enabled():
+        return False
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from ingest_books import generate_embeddings
 
@@ -361,6 +372,20 @@ def search_qdrant(
     Returns:
         (filtered_results, initial_count)
     """
+    import time
+    tracer = get_tracer()
+    span_ctx = tracer.start_as_current_span("qdrant_search") if tracer else None
+    
+    if span_ctx:
+        span = span_ctx.__enter__()
+        span.set_attribute("query", query[:200])  # Truncate for safety
+        span.set_attribute("collection", collection_name)
+        span.set_attribute("limit", limit)
+        span.set_attribute("threshold", threshold)
+        span.set_attribute("book_filter", book_filter or "none")
+        span.set_attribute("chunk_level_filter", chunk_level_filter or "none")
+    
+    embed_start = time.time()
     client = QdrantClient(host=host, port=port)
 
     # Auto-detect embedding model from collection metadata
@@ -373,6 +398,10 @@ def search_qdrant(
     # Generate query embedding using detected or default model
     logger.info(f"[SEARCH] Query: '{query}'")
     query_vector = generate_embeddings([query], model_id=collection_model_id)[0]
+    embed_time = time.time() - embed_start
+    
+    if span_ctx:
+        span.set_attribute("embedding_time_ms", int(embed_time * 1000))
 
     # Build filter
     conditions = []
@@ -396,12 +425,14 @@ def search_qdrant(
     fetch_limit = max(20, limit * fetch_multiplier)
 
     # Search
+    search_start = time.time()
     initial_results = client.query_points(
         collection_name=collection_name,
         query=query_vector,
         limit=fetch_limit,
         query_filter=query_filter
     ).points
+    search_time = time.time() - search_start
 
     logger.info(f"[OK] Retrieved {len(initial_results)} initial results")
 
@@ -410,6 +441,15 @@ def search_qdrant(
 
     if len(filtered_results) < len(initial_results):
         logger.info(f"🎯 Filtered to {len(filtered_results)} results above threshold ({threshold:.2f})")
+
+    # Record Phoenix metrics
+    if span_ctx:
+        span.set_attribute("search_time_ms", int(search_time * 1000))
+        span.set_attribute("initial_results", len(initial_results))
+        span.set_attribute("filtered_results", len(filtered_results))
+        if filtered_results:
+            span.set_attribute("top_score", filtered_results[0].score)
+        span_ctx.__exit__(None, None, None)
 
     return filtered_results, len(initial_results)
 
@@ -493,7 +533,18 @@ def rerank_with_llm(
         Reranked results (top N)
     """
     import requests
-
+    import time
+    
+    tracer = get_tracer()
+    span_ctx = tracer.start_as_current_span("llm_rerank") if tracer else None
+    
+    if span_ctx:
+        span = span_ctx.__enter__()
+        span.set_attribute("model", rerank_model)
+        span.set_attribute("input_count", len(results))
+        span.set_attribute("limit", limit)
+    
+    rerank_start = time.time()
     logger.info(f"🤖 Reranking top {min(10, len(results))} results with {rerank_model}...")
 
     rerank_scores = []
@@ -534,6 +585,13 @@ Respond with only a number from 0-10."""
     # Sort by rerank score and take top results
     rerank_scores.sort(key=lambda x: x[1], reverse=True)
     reranked_results = [r[0] for r in rerank_scores[:limit]]
+    
+    rerank_time = time.time() - rerank_start
+    
+    if span_ctx:
+        span.set_attribute("rerank_time_ms", int(rerank_time * 1000))
+        span.set_attribute("output_count", len(reranked_results))
+        span_ctx.__exit__(None, None, None)
 
     logger.info(f"[OK] Reranked to top {len(reranked_results)} most relevant chunks")
     return reranked_results
@@ -562,6 +620,18 @@ def generate_answer(
         Generated answer text
     """
     import requests
+    import time
+    
+    tracer = get_tracer()
+    span_ctx = tracer.start_as_current_span("llm_answer") if tracer else None
+    
+    if span_ctx:
+        span = span_ctx.__enter__()
+        span.set_attribute("model", model)
+        span.set_attribute("temperature", temperature)
+        span.set_attribute("context_chunks", len(results))
+    
+    answer_start = time.time()
 
     # Build RAG context
     context_parts = []
@@ -608,10 +678,22 @@ def generate_answer(
 
     if response.status_code == 200:
         answer = response.json()["choices"][0]["message"]["content"]
+        answer_time = time.time() - answer_start
+        
+        if span_ctx:
+            span.set_attribute("answer_time_ms", int(answer_time * 1000))
+            span.set_attribute("answer_length", len(answer))
+            span_ctx.__exit__(None, None, None)
+        
         logger.info("[OK] Answer generated successfully")
         return answer
     else:
         error_msg = f"OpenRouter API error {response.status_code}: {response.text}"
+        
+        if span_ctx:
+            span.set_attribute("error", error_msg)
+            span_ctx.__exit__(None, None, None)
+        
         logger.error(error_msg)
         raise Exception(error_msg)
 

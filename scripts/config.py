@@ -101,6 +101,13 @@ GUARDIANS_DIR = os.environ.get(
 INGEST_VERSION = "2.0"  # Semantic version for tracking ingestion schema changes
 
 # =============================================================================
+# PHOENIX OBSERVABILITY
+# =============================================================================
+
+PHOENIX_ENABLED = os.environ.get('PHOENIX_ENABLED', 'true').lower() != 'false'
+PHOENIX_PORT = int(os.environ.get('PHOENIX_PORT', '6006'))
+
+# =============================================================================
 # OPENROUTER (OPTIONAL - for CLI testing)
 # =============================================================================
 
@@ -164,6 +171,8 @@ def print_config():
     print(f"ALEXANDRIA_DB:        {ALEXANDRIA_DB or '(not set - using local fallback)'}")
     print(f"INGEST_VERSION:       {INGEST_VERSION}")
     print(f"OPENROUTER_API_KEY:   {'***' + OPENROUTER_API_KEY[-4:] if OPENROUTER_API_KEY else '(not set)'}")
+    print(f"PHOENIX_ENABLED:      {PHOENIX_ENABLED}")
+    print(f"PHOENIX_PORT:         {PHOENIX_PORT}")
     print("=" * 40)
 
 

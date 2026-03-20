@@ -44,6 +44,12 @@ mcp>=1.0.0  # Model Context Protocol SDK for Claude Code integration
 # GUI
 streamlit>=1.29.0  # Web interface (binds to 0.0.0.0:8501)
 
+# Observability & Evaluation
+arize-phoenix>=4.0.0  # RAG observability, tracing, evaluation dashboard
+opentelemetry-api>=1.20.0  # OpenTelemetry tracing API
+opentelemetry-sdk>=1.20.0  # OpenTelemetry SDK
+opentelemetry-instrumentation>=0.41b0  # Auto-instrumentation base
+
 # Development (Recommended - Not Yet Implemented)
 pytest==7.4.3  # Testing framework
 pytest-cov==4.1.0  # Coverage reports

@@ -1,0 +1,12 @@
+project:
+  name: Alexandria
+  type: application
+  description: Multilingual knowledge platform with vector search
+
+user:
+  name: Sabo
+  language: hr
+
+settings:
+  outputDir: _bmad-output
+  communicationLanguage: Croatian

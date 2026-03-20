@@ -51,7 +51,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Timeout for single book processing (seconds)
-BOOK_TIMEOUT = 300  # 5 minutes
+# Large semantic books can legitimately take 30-60 minutes
+# This is only for catching infinite hangs, not slow processing
+BOOK_TIMEOUT = 3600  # 60 minutes
 
 class BookTimeoutError(Exception):
     """Raised when book processing exceeds timeout."""
