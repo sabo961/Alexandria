@@ -559,12 +559,24 @@ with st.expander("⚙️ Chunking Rules", expanded=False):
             # Save button
             if st.button("💾 Save Rules", type="primary"):
                 # Convert back to JSON format
+                def dedupe(records):
+                    seen = set()
+                    result = []
+                    for r in records:
+                        key = r.get("pattern", "").strip().lower()
+                        if key and key not in seen:
+                            seen.add(key)
+                            result.append(r)
+                    return result
+
+                authors_list = edited_authors.to_dict('records') if not edited_authors.empty else []
+                titles_list = edited_titles.to_dict('records') if not edited_titles.empty else []
                 new_rules = {
                     "_comment": rules.get("_comment", "Chunking rules for Alexandria"),
                     "_updated": str(pd.Timestamp.now().date()),
                     "_default": "fixed (if no rule matches)",
-                    "authors": edited_authors.to_dict('records') if not edited_authors.empty else [],
-                    "title_contains": edited_titles.to_dict('records') if not edited_titles.empty else [],
+                    "authors": dedupe(authors_list),
+                    "title_contains": dedupe(titles_list),
                     "title_exact": rules.get("title_exact", [])
                 }
                 
