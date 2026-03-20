@@ -705,7 +705,8 @@ with st.expander("🔄 Ingest Control", expanded=False):
             mismatched = get_books_needing_reingest(db_path)
             if mismatched:
                 import pandas as pd
-                df_mm = pd.DataFrame(mismatched, columns=["Title", "Author", "Current Mode", "Should Be"])
+                df_mm = pd.DataFrame(mismatched)[["title", "author", "current_mode", "should_be"]]
+                df_mm.columns = ["Title", "Author", "Current Mode", "Should Be"]
                 st.dataframe(df_mm, width="stretch", hide_index=True)
                 st.caption(f"{len(mismatched)} book(s) need reingest to apply current chunking rules.")
 
