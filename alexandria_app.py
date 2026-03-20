@@ -511,6 +511,7 @@ with st.expander("⚙️ Chunking Rules", expanded=False):
                     author_data.append({"pattern": item, "semantic": True})
                 else:
                     author_data.append({"pattern": item.get("pattern", ""), "semantic": item.get("semantic", True)})
+            author_data.sort(key=lambda x: x["pattern"].lower())
             
             if author_data:
                 import pandas as pd
@@ -538,6 +539,7 @@ with st.expander("⚙️ Chunking Rules", expanded=False):
                     title_data.append({"pattern": item, "semantic": True})
                 else:
                     title_data.append({"pattern": item.get("pattern", ""), "semantic": item.get("semantic", True)})
+            title_data.sort(key=lambda x: x["pattern"].lower())
             
             if title_data:
                 df_titles = pd.DataFrame(title_data)
