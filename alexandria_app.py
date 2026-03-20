@@ -597,6 +597,126 @@ with st.expander("⚙️ Chunking Rules", expanded=False):
             st.rerun()
 
 # =============================================================================
+# SECTION 3b: Ingest Control
+# =============================================================================
+
+with st.expander("🔄 Ingest Control", expanded=False):
+    import subprocess
+    import platform
+
+    def get_ingest_pid():
+        """Find running batch_ingest.py process PID. Returns int or None."""
+        try:
+            if platform.system() == "Windows":
+                result = subprocess.run(
+                    ['wmic', 'process', 'where', "commandline like '%batch_ingest%' and name='python.exe'",
+                     'get', 'processid', '/format:list'],
+                    capture_output=True, text=True, timeout=5
+                )
+                for line in result.stdout.splitlines():
+                    if line.startswith("ProcessId="):
+                        pid = line.split("=")[1].strip()
+                        if pid.isdigit():
+                            return int(pid)
+            return None
+        except Exception:
+            return None
+
+    def start_ingest():
+        """Start ingest via Task Scheduler."""
+        try:
+            result = subprocess.run(
+                ['schtasks', '/run', '/tn', 'AlexandriaIngest'],
+                capture_output=True, text=True, timeout=10
+            )
+            return result.returncode == 0, result.stdout + result.stderr
+        except Exception as e:
+            return False, str(e)
+
+    def stop_ingest(pid: int):
+        """Kill ingest process by PID."""
+        try:
+            result = subprocess.run(
+                ['taskkill', '/PID', str(pid), '/F'],
+                capture_output=True, text=True, timeout=10
+            )
+            return result.returncode == 0, result.stdout + result.stderr
+        except Exception as e:
+            return False, str(e)
+
+    # --- Status ---
+    ingest_pid = get_ingest_pid()
+    if ingest_pid:
+        st.success(f"🟢 Ingest active (PID {ingest_pid})")
+    else:
+        st.info("⚪ Ingest idle")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if ingest_pid:
+            if st.button("⛔ Stop Ingest", type="primary", key="stop_ingest"):
+                ok, msg = stop_ingest(ingest_pid)
+                if ok:
+                    st.success("Stopped.")
+                else:
+                    st.error(f"Failed: {msg}")
+                st.rerun()
+        else:
+            if st.button("▶️ Start Ingest", type="primary", key="start_ingest"):
+                ok, msg = start_ingest()
+                if ok:
+                    st.success("Started via Task Scheduler.")
+                else:
+                    st.error(f"Failed: {msg}")
+                st.rerun()
+
+    with col2:
+        if st.button("🔄 Refresh Status", key="refresh_ingest_status"):
+            st.rerun()
+
+    # --- Reingest books needing chunking mode change ---
+    st.divider()
+    st.subheader("♻️ Reingest — Chunking Mismatch")
+    st.caption("Books already ingested with fixed chunking that now match a semantic rule (or vice versa).")
+
+    try:
+        from chunking_policy import get_books_needing_reingest
+        db_path = str(ALEXANDRIA_DB) if 'ALEXANDRIA_DB' in dir() else ''
+        if not db_path:
+            import os
+            db_path = os.environ.get('ALEXANDRIA_DB', '')
+
+        if db_path:
+            mismatched = get_books_needing_reingest(db_path)
+            if mismatched:
+                import pandas as pd
+                df_mm = pd.DataFrame(mismatched, columns=["Title", "Author", "Current Mode", "Should Be"])
+                st.dataframe(df_mm, width="stretch", hide_index=True)
+                st.caption(f"{len(mismatched)} book(s) need reingest to apply current chunking rules.")
+
+                if st.button("♻️ Reingest Mismatched Books", type="secondary", key="reingest_mismatch"):
+                    if ingest_pid:
+                        st.warning("Stop current ingest first before running reingest.")
+                    else:
+                        st.info("Starting reingest of mismatched books... check ingest log for progress.")
+                        try:
+                            subprocess.Popen(
+                                ['python', 'reingest_mismatched.py'],
+                                cwd=str(project_root / 'scripts'),
+                                creationflags=subprocess.CREATE_NEW_CONSOLE if platform.system() == "Windows" else 0
+                            )
+                            st.success("Reingest launched.")
+                        except Exception as e:
+                            st.error(f"Failed to launch: {e}")
+            else:
+                st.success("✅ All ingested books match current chunking rules.")
+        else:
+            st.warning("ALEXANDRIA_DB not configured — cannot check mismatches.")
+    except Exception as e:
+        st.error(f"Could not check mismatches: {e}")
+
+# =============================================================================
 # SECTION 4: Speaker's Corner
 # =============================================================================
 with st.expander("🗣️ Speaker's Corner", expanded=True):
