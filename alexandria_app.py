@@ -385,10 +385,28 @@ with st.expander("📖 Ingested Books (Qdrant)", expanded=False):
         manifest_data = load_manifest(selected_coll)
 
         if manifest_data and manifest_data.get('books'):
-            st.metric("Total Chunks", f"{manifest_data.get('total_chunks', 0):,}")
-            st.caption(f"📋 Collection: {selected_coll} | Source: SQLite manifest")
-
             books_data = manifest_data.get('books', [])
+
+            # --- Filters (same pattern as Calibre Library) ---
+            fcol1, fcol2, fcol3 = st.columns([2, 1, 2])
+            iq_author_filter = fcol1.text_input("Filter by author", key="iq_author", placeholder="e.g. Pessoa")
+            # Build language options from data
+            _iq_langs = sorted(set(b.get('language', '?') for b in books_data))
+            iq_lang_filter = fcol2.selectbox("Language", ["All"] + _iq_langs, key="iq_lang")
+            iq_title_filter = fcol3.text_input("Search title", key="iq_title")
+
+            filtered_data = books_data
+            if iq_author_filter:
+                filtered_data = [b for b in filtered_data if iq_author_filter.lower() in (b.get('author', '') or '').lower()]
+            if iq_lang_filter != "All":
+                filtered_data = [b for b in filtered_data if b.get('language', '?') == iq_lang_filter]
+            if iq_title_filter:
+                filtered_data = [b for b in filtered_data if iq_title_filter.lower() in (b.get('book_title', '') or '').lower()]
+
+            total_chunks = sum(b.get('chunks_count', 0) for b in filtered_data)
+            st.metric("Total Chunks", f"{total_chunks:,}")
+            st.caption(f"📋 Collection: {selected_coll} | Source: SQLite manifest | Showing {len(filtered_data)} of {len(books_data)} books")
+
             import pandas as pd
 
             def _fmt_source(b):
@@ -407,19 +425,33 @@ with st.expander("📖 Ingested Books (Qdrant)", expanded=False):
                     "Source": _fmt_source(b),
                     "Ingested": b.get('ingested_at', '')[:10]
                 }
-                for b in books_data
+                for b in filtered_data
             ])
             st.dataframe(df, width="stretch", hide_index=True)
         else:
             # Fallback: Query Qdrant directly
-            st.caption(f"📋 Collection: {selected_coll} | Source: Qdrant (no manifest)")
-
             with st.spinner("Scanning collection..."):
                 books_data = get_books_from_qdrant(selected_coll)
 
             if books_data:
-                total_chunks = sum(b['chunks_count'] for b in books_data)
+                # --- Filters ---
+                fcol1, fcol2, fcol3 = st.columns([2, 1, 2])
+                iqf_author = fcol1.text_input("Filter by author", key="iqf_author", placeholder="e.g. Pessoa")
+                _iqf_langs = sorted(set(b.get('language', '?') for b in books_data))
+                iqf_lang = fcol2.selectbox("Language", ["All"] + _iqf_langs, key="iqf_lang")
+                iqf_title = fcol3.text_input("Search title", key="iqf_title")
+
+                filtered_data = books_data
+                if iqf_author:
+                    filtered_data = [b for b in filtered_data if iqf_author.lower() in (b.get('author', '') or '').lower()]
+                if iqf_lang != "All":
+                    filtered_data = [b for b in filtered_data if b.get('language', '?') == iqf_lang]
+                if iqf_title:
+                    filtered_data = [b for b in filtered_data if iqf_title.lower() in (b.get('book_title', '') or '').lower()]
+
+                total_chunks = sum(b['chunks_count'] for b in filtered_data)
                 st.metric("Total Chunks", f"{total_chunks:,}")
+                st.caption(f"📋 Collection: {selected_coll} | Source: Qdrant (no manifest) | Showing {len(filtered_data)} of {len(books_data)} books")
 
                 import pandas as pd
                 df = pd.DataFrame([
@@ -429,7 +461,7 @@ with st.expander("📖 Ingested Books (Qdrant)", expanded=False):
                         "Chunks": b.get('chunks_count', 0),
                         "Language": b.get('language', '?'),
                     }
-                    for b in books_data
+                    for b in filtered_data
                 ])
                 st.dataframe(df, width="stretch", hide_index=True)
             else:
