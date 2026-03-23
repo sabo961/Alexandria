@@ -72,9 +72,16 @@ def get_collection_stats():
     except Exception as e:
         return {"error": str(e)}
 
+def _calibre_db_mtime() -> float:
+    """Return metadata.db mtime so cache auto-invalidates on Calibre changes."""
+    try:
+        return Path(CALIBRE_LIBRARY_PATH, "metadata.db").stat().st_mtime
+    except OSError:
+        return 0.0
+
 @st.cache_data(ttl=300)
-def load_calibre_books():
-    """Load books from Calibre (cached for 5min)."""
+def load_calibre_books(_mtime: float = 0.0):
+    """Load books from Calibre (cached until metadata.db changes or 5min TTL)."""
     try:
         db = CalibreDB(CALIBRE_LIBRARY_PATH)
         return db.get_all_books()
@@ -200,7 +207,7 @@ with st.sidebar:
             st.warning("Could not load stats")
 
     # Calibre book count
-    books = load_calibre_books()
+    books = load_calibre_books(_mtime=_calibre_db_mtime())
     if books and not isinstance(books, tuple):
         st.metric("📚 Calibre Library", f"{len(books):,} books")
 
@@ -301,7 +308,7 @@ st.caption("Knowledge Management Dashboard")
 # SECTION 1: Calibre Library
 # =============================================================================
 with st.expander("📚 Calibre Library", expanded=False):
-    books = load_calibre_books()
+    books = load_calibre_books(_mtime=_calibre_db_mtime())
 
     if books is None or isinstance(books, tuple):
         st.error(f"Could not connect to Calibre: {books[1] if isinstance(books, tuple) else 'Unknown error'}")
