@@ -326,6 +326,55 @@ kbd {
    (monospace font, green primary color, dark backgrounds)
    No additional CSS needed - Streamlit applies the theme automatically */
 
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+@media (max-width: 768px) {
+    .main-title {
+        font-size: 2rem;
+        letter-spacing: 1px;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    .section-header {
+        font-size: 1.3rem;
+    }
+
+    .stat-box {
+        padding: 1rem;
+        margin: 0.25rem;
+    }
+
+    .stat-number {
+        font-size: 1.8rem;
+    }
+
+    /* Streamlit columns stack on mobile */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap;
+    }
+
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+
+    /* Make buttons full width on mobile */
+    .stButton > button {
+        width: 100% !important;
+    }
+
+    /* Hide keyboard shortcuts on mobile (no keyboard) */
+    .keyboard-help-overlay {
+        display: none !important;
+    }
+}
+
 /* Dark mode keyboard shortcuts styling */
 @media (prefers-color-scheme: dark) {
     .keyboard-help-dialog {

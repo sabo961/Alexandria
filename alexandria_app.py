@@ -9,11 +9,23 @@ Launch:
 
 import streamlit as st
 
-# Hide Deploy button (keep Settings)
+# Hide Deploy button + mobile-friendly styles
 st.markdown("""
 <style>
     [data-testid="stAppDeployButton"] {
         display: none;
+    }
+    /* Mobile: make sidebar overlay not push content */
+    @media (max-width: 768px) {
+        [data-testid="stSidebar"] {
+            z-index: 999;
+        }
+        /* Reduce main area padding on mobile */
+        .main .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-top: 1rem;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -44,7 +56,7 @@ st.set_page_config(
     page_title="Alexandria",
     page_icon="assets/logo.png",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 # =============================================================================
